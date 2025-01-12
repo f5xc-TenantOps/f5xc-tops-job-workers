@@ -2,7 +2,7 @@ import boto3
 import json
 from f5xc_tops_py_client.cred import APIcred
 
-def get_parameters(parameter_names, region_name="us-west-2"):
+def get_parameters(parameter_names, region_name="us-east-1"):
     """
     Fetch parameters from AWS Parameter Store.
 
