@@ -6,7 +6,9 @@ on:
       - main
       - dev
     paths:
-      - 'token_refresh/**'
+      - 'token_refresh/**'  # Trigger only when files in the token_refresh directory change
+
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
 
 jobs:
   build-and-push:
