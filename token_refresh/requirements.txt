@@ -1,0 +1,2 @@
+boto3
+git+https://github.com/f5xc-TenantOps/f5xc-tops-py-client.git
