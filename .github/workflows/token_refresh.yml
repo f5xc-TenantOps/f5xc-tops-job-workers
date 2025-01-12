@@ -14,6 +14,9 @@ jobs:
 
     env:
       CONTAINER_NAME: tops_token_refresh
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
       - name: Checkout code
@@ -43,8 +46,3 @@ jobs:
         run: |
           docker push ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:latest
           docker push ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:${{ env.commit_hash }}
-
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
