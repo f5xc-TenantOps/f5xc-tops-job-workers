@@ -1,8 +1,8 @@
 FROM public.ecr.aws/lambda/python:3.9
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
- && rm -rf /var/lib/apt/lists/*
+RUN yum install -y git \
+ && yum clean all \
+ && rm -rf /var/cache/yum
 
 WORKDIR /var/task
 
