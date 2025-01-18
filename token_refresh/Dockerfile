@@ -8,7 +8,7 @@ WORKDIR /var/task
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --target /var/task -r requirements.txt
 
 COPY function.py .
 
