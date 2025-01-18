@@ -1,74 +1,83 @@
+"""
+This module refreshes an F5 XC tenant token.
+"""
+# pylint: disable=import-error
+import os
 import boto3
-import json
-from f5xc_tops_py_client.cred import APIcred
+from f5xc_tops_py_client.cred import session, apicred
 
-def get_parameters(parameter_names, region_name="us-east-1"):
+def get_parameters(parameters: list, region_name: str="us-west-2"):
     """
     Fetch parameters from AWS Parameter Store.
 
-    Args:
-        parameter_names (list): List of parameter names to fetch from the Parameter Store.
-        region_name (str): AWS region where the Parameter Store is located. Default is 'us-west-2'.
-
     Returns:
-        dict: A dictionary containing parameter names and their corresponding values.
+        dict: A dictionary containing $parameters.
     """
-    session = boto3.session.Session()
-    ssm = session.client("ssm", region_name=region_name)
-    parameters = ssm.get_parameters(Names=parameter_names, WithDecryption=True)
-    return {param['Name']: param['Value'] for param in parameters['Parameters']}
+    aws = boto3.session.Session()
+    ssm = aws.client("ssm", region_name=region_name)
+    parameters = ssm.get_parameters(Names=parameters, WithDecryption=True)
+    return {param['Name'].split('/')[-1]: param['Value'] for param in parameters['Parameters']}
 
-def refresh_token(tenant_url, token, expiration_days=7):
+def refresh_token(_api, token_name: str, expiration_days: int=7):
     """
     Refresh the F5 XC tenant token by building a payload and renewing it.
-
-    Args:
-        tenant_url (str): The URL of the F5 XC tenant.
-        token (str): The current token for the tenant.
-        expiration_days (int): The number of days before the token expires. Default is 7.
-
-    Returns:
-        str: The new refreshed token.
     """
-    creds = APIcred(tenant_url, token)
-    payload = creds.build_payload(expiration_days=expiration_days)
-    return creds.renew(payload)
+    try:
+        payload = _api.renew_payload(name=token_name, expiration_days=expiration_days)
+        _api.renew(payload)
+    except (KeyError, ValueError) as e:
+        raise RuntimeError(f"Failed renew cred: {e}") from e
 
 def main():
     """
-    Main function to fetch parameters, refresh the token, and return a structured response.
+    Main function to refresh the token.
 
     Returns:
-        dict: A response dictionary containing statusCode, status, message, and the new token.
+        dict: A response dictionary containing statusCode, status, and message.
     """
     try:
-        parameter_names = ["TenantURL", "Token"]
-        region = boto3.session.Session().region_name or "us-west-2"
-        params = get_parameters(parameter_names, region)
-        tenant_url = params["TenantURL"]
-        token = params["Token"]
-        new_token = refresh_token(tenant_url, token, expiration_days=7)
-        response = {
+        try:
+            base_path = os.environ.get("SSM_BASE_PATH")
+            region = boto3.session.Session().region_name or "us-west-2"
+            params = get_parameters(
+                [f"{base_path}/tenant-url",
+                 f"{base_path}/token-value",
+                 f"{base_path}/token-name"],
+                 region_name=region)
+        except boto3.exceptions.Boto3Error as e:
+            raise RuntimeError(f"Failed to get parameters: {e}") from e
+
+        try:
+            auth = session(tenant_url=params['tenant-url'], api_token=params['token-value'])
+            _api = apicred(auth)
+        except (KeyError, ValueError) as e:
+            raise RuntimeError(f"Failed to create API session: {e}") from e
+
+        try:
+            refresh_token(_api, params['token-name'], expiration_days=7)
+        except (KeyError, ValueError) as e:
+            raise RuntimeError(f"Failed to refresh token: {e}") from e
+
+        res = {
             "statusCode": 200,
             "status": "success",
-            "message": "Token refreshed successfully",
-            "new_token": new_token
+            "message": "Token refreshed successfully"
         }
-    except Exception as e:
-        response = {
+    except (boto3.exceptions.Boto3Error, KeyError, ValueError) as e:
+        res = {
             "statusCode": 500,
             "status": "error",
             "message": str(e)
         }
-    print(json.dumps(response))
-    return response
+    return res
+
 
 def lambda_handler(event, context):
     """
-    AWS Lambda entry point. Calls the main function.
+    AWS Lambda entry point.
     """
     return main()
 
 if __name__ == "__main__":
-    res = main()
-    print(res)
+    response = main()
+    print(response)
