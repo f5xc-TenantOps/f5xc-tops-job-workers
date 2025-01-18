@@ -69,6 +69,7 @@ def main():
             "status": "error",
             "message": str(e)
         }
+    print(res)
     return res
 
 
@@ -79,5 +80,4 @@ def lambda_handler(event, context):
     return main()
 
 if __name__ == "__main__":
-    response = main()
-    print(response)
+    main()
