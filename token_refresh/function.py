@@ -4,7 +4,7 @@ This module refreshes an F5 XC tenant token.
 # pylint: disable=import-error
 import os
 import boto3
-from f5xc_tops_py_client.cred import session, apicred
+from f5xc_tops_py_client import session, apicred # type: ignore
 
 def get_parameters(parameters: list, region_name: str="us-west-2"):
     """
