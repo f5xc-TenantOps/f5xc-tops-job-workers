@@ -6,9 +6,9 @@ on:
       - main
       - dev
     paths:
-      - 'token_refresh/**'  # Trigger only when files in the token_refresh directory change
+      - 'token_refresh/**'
 
-  workflow_dispatch:  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -41,8 +41,8 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:latest .
-          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:${{ env.commit_hash }} .
+          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:latest token_refresh
+          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:${{ env.commit_hash }} token_refresh
 
       - name: Push Docker images
         run: |
