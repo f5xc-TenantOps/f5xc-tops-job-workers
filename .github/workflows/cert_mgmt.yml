@@ -41,8 +41,8 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:latest token_refresh
-          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:${{ env.commit_hash }} token_refresh
+          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:latest cert_mgmt
+          docker build -t ${{ secrets.ECR_REPO_URL }}/${{ env.image_name }}:${{ env.commit_hash }} cert_mgmt
 
       - name: Push Docker images
         run: |
