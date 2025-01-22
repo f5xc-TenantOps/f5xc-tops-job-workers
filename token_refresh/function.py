@@ -60,14 +60,12 @@ def main():
 
         res = {
             "statusCode": 200,
-            "status": "success",
-            "message": "Token refreshed successfully"
+            "body": f"Token {params['token-name']} refreshed successfully"
         }
     except (boto3.exceptions.Boto3Error, KeyError, ValueError) as e:
         res = {
             "statusCode": 500,
-            "status": "error",
-            "message": str(e)
+            "body": str(e)
         }
     print(res)
     return res

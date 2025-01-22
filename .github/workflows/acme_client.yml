@@ -1,4 +1,4 @@
-name: Build and Publish tops_token_refresh to ECR
+name: Build and Publish tops_acme_client to ECR
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
       - dev
     paths:
-      - 'token_refresh/**'
+      - 'acme_client/**'
 
   workflow_dispatch:
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CONTAINER_NAME: tops-token-refresh
+      CONTAINER_NAME: tops-acme-client
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
