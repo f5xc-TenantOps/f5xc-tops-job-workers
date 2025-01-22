@@ -3,12 +3,12 @@ Generates a wildcard DNS certificate and uploads it to S3, renewing if necessary
 """
 # pylint: disable=broad-except
 import os
-import subprocess
 from datetime import datetime, timedelta
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from certbot.main import main as certbot_main
 
 
 def check_cert_expiry(cert_path: str) -> bool:
@@ -33,7 +33,7 @@ def check_cert_expiry(cert_path: str) -> bool:
 
 def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
     """
-    Generates a wildcard DNS certificate via Route 53 and uploads it to S3.
+    Generates a wildcard DNS certificate via the Certbot Python API and uploads it to S3.
 
     Args:
         domain (str): The domain for the certificate.
@@ -42,22 +42,19 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
         cert_name (str): The name of the certificate directory in S3.
     """
     try:
-        # Run certbot to generate the certificate
-        subprocess.run(
-            [
-                "certbot", "certonly",
-                "--non-interactive",
-                "--agree-tos",
-                "--email", email,
-                "--dns-route53",
-                "--dns-route53-propagation-seconds", "30",
-                "--domains", f"*.{domain}",
-                "--work-dir", "/tmp/certbot/work",
-                "--logs-dir", "/tmp/certbot/logs",
-                "--config-dir", "/tmp/certbot/config"
-            ],
-            check=True
-        )
+        # Run certbot using the Python API
+        certbot_main([
+            "certonly",
+            "--non-interactive",
+            "--agree-tos",
+            "--email", email,
+            "--dns-route53",
+            "--dns-route53-propagation-seconds", "30",
+            "--domains", f"*.{domain}",
+            "--config-dir", "/tmp/certbot/config",
+            "--work-dir", "/tmp/certbot/work",
+            "--logs-dir", "/tmp/certbot/logs",
+        ])
 
         # Define certificate paths
         cert_path = f"/tmp/certbot/config/live/{domain}/fullchain.pem"
@@ -78,8 +75,6 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
             "body": f"Certificate for {domain} generated and uploaded to S3 successfully in {cert_name}."
         }
 
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Certbot process failed: {str(e)}") from e
     except (BotoCoreError, ClientError) as e:
         raise RuntimeError(f"Error uploading to S3: {str(e)}") from e
     except Exception as e:

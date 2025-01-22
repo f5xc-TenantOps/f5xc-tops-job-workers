@@ -1,3 +1,4 @@
+certbot
+certbot-dns-route53
 boto3
-botocore
 cryptography

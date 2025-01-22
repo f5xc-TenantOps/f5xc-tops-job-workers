@@ -1,8 +1,5 @@
 FROM public.ecr.aws/lambda/python:3.11
 
-RUN yum install -y certbot python3-certbot-dns-route53 && \
-    yum clean all
-
 WORKDIR /var/task
 
 COPY function.py ./
