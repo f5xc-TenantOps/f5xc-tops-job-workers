@@ -13,3 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY function.py .
 
 CMD ["function.lambda_handler"]
+
