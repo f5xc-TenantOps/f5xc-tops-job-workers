@@ -87,19 +87,21 @@ def main():
         # Load environment variables and fetch required parameters
         try:
             base_path = os.environ.get("SSM_BASE_PATH")
-            if not base_path:
-                raise RuntimeError("Environment variable 'SSM_BASE_PATH' is not set.")
+            bucket_name = os.environ.get("S3_BUCKET")
+
+            missing_vars = [var for var in ("SSM_BASE_PATH", "S3_BUCKET") if os.environ.get(var) is None]
+            if missing_vars:
+                raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
             region = boto3.session.Session().region_name or "us-west-2"
             param_names = [
                 f"{base_path}/wildcard-cert-name",
-                f"{base_path}/wildcard-cert-ns",
                 f"{base_path}/tenant-url",
                 f"{base_path}/token-value"
             ]
             params = get_parameters(param_names, region_name=region)
         except Exception as e:
-            raise RuntimeError(f"Error fetching parameters from AWS Parameter Store: {e}") from e
+            raise RuntimeError(f"Error fetching parameters: {e}") from e
 
         # Authenticate with the tenant
         try:
@@ -113,9 +115,6 @@ def main():
         # Retrieve the certificate and key from S3
         try:
             s3_client = boto3.client("s3")
-            bucket_name = os.environ.get("S3_BUCKET")
-            if not bucket_name:
-                raise RuntimeError("Environment variable 'S3_BUCKET' is not set.")
 
             cert_path = f"{params[f'{base_path}/wildcard-cert-name']}/fullchain.pem"
             key_path = f"{params[f'{base_path}/wildcard-cert-name']}/privkey.pem"
