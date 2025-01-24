@@ -36,7 +36,7 @@ jobs:
       # Step 4: Package the Lambda function
       - name: Package Lambda function
         run: |
-          cp ${{ env.LAMBDA_DIR }}/lambda_function.py ${{ env.LAMBDA_DIR }}/package/
+          cp ${{ env.LAMBDA_DIR }}/function.py ${{ env.LAMBDA_DIR }}/package/
           cd ${{ env.LAMBDA_DIR }}/package
           zip -r ../../${{ env.ZIP_NAME }} .
           cd ../..
