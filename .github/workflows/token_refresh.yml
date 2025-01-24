@@ -8,60 +8,70 @@ on:
     paths:
       - 'token_refresh/**'
   workflow_dispatch:
+    inputs:
+      lambda_name:
+        description: "Name of the Lambda function directory"
+        default: "token_refresh"
+        required: true
+
+env:
+  LAMBDA_NAME: ${{ github.event.inputs.lambda_name }}
+  LAMBDA_DIR: ${{ github.event.inputs.lambda_name }}
 
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
 
-    env:
-      LAMBDA: token_refresh
-
     steps:
+      # Step 1: Check out the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Step 2: Set up Python
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: 3.11
 
+      # Step 3: Set environment variables dynamically based on branch
       - name: Set environment variables
         run: |
           if [[ "${{ github.ref_name }}" == "dev" ]]; then
-            echo "ZIP_NAME=${{ env.LAMBDA }}_dev.zip" >> $GITHUB_ENV
-            echo "S3_KEY=lambda/${{ env.LAMBDA }}_dev.zip" >> $GITHUB_ENV
+            echo "ZIP_NAME=${{ env.LAMBDA_NAME }}_dev.zip" >> $GITHUB_ENV
+            echo "S3_KEY=lambda/${{ env.LAMBDA_NAME }}_dev.zip" >> $GITHUB_ENV
             echo "S3_BUCKET=tops-lambda-functions-dev" >> $GITHUB_ENV
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "ZIP_NAME=${{ env.LAMBDA }}.zip" >> $GITHUB_ENV
-            echo "S3_KEY=lambda/${{ env.LAMBDA }}.zip" >> $GITHUB_ENV
+            echo "ZIP_NAME=${{ env.LAMBDA_NAME }}.zip" >> $GITHUB_ENV
+            echo "S3_KEY=lambda/${{ env.LAMBDA_NAME }}.zip" >> $GITHUB_ENV
             echo "S3_BUCKET=tops-lambda-functions" >> $GITHUB_ENV
           fi
 
+      # Step 4: Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ${{ env.LAMBDA }}/requirements.txt -t ${{ env.LAMBDA }}/package
+          pip install -r ${{ env.LAMBDA_DIR }}/requirements.txt -t ${{ env.LAMBDA_DIR }}/package
 
+      # Step 5: Package the Lambda function
       - name: Package Lambda function
         run: |
-          cp ${{ env.LAMBDA }}/function.py ${{ env.LAMBDA }}/package/
-          cd ${{ env.LAMBDA }}/package
+          cp ${{ env.LAMBDA_DIR }}/function.py ${{ env.LAMBDA_DIR }}/package/
+          cd ${{ env.LAMBDA_DIR }}/package
           zip -r ../../${{ env.ZIP_NAME }} .
           cd ../..
 
+      # Step 6: Upload ZIP to S3 using AWS CLI
       - name: Upload to S3
-        uses: aws-actions/s3-upload@v1
-        with:
-          bucket: ${{ env.S3_BUCKET }}
-          region: us-west-2
-          file: ${{ env.ZIP_NAME }}
-          key: ${{ env.S3_KEY }}
+        run: |
+          aws s3 cp ${{ env.ZIP_NAME }} s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-west-2
 
+      # Step 7: Upload ZIP as artifact (optional)
       - name: Upload ZIP as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.LAMBDA }}_package_${{ github.ref_name }}
+          name: ${{ env.LAMBDA_NAME }}_package_${{ github.ref_name }}
           path: ${{ env.ZIP_NAME }}
