@@ -8,15 +8,10 @@ on:
     paths:
       - 'acme_client/**'
   workflow_dispatch:
-    inputs:
-      lambda_name:
-        description: "Name of the Lambda function directory"
-        default: "acme_client"
-        required: true
 
 env:
-  LAMBDA_NAME: ${{ github.event.inputs.lambda_name }}
-  LAMBDA_DIR: ${{ github.event.inputs.lambda_name }}
+  LAMBDA_NAME: acme_client
+  LAMBDA_DIR: acme_client
 
 jobs:
   build-and-upload:

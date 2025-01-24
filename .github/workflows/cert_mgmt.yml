@@ -8,15 +8,10 @@ on:
     paths:
       - 'cert_mgmt/**'
   workflow_dispatch:
-    inputs:
-      lambda_name:
-        description: "Name of the Lambda function directory"
-        default: "cert_mgmt"
-        required: true
 
 env:
-  LAMBDA_NAME: ${{ github.event.inputs.lambda_name }}
-  LAMBDA_DIR: ${{ github.event.inputs.lambda_name }}
+  LAMBDA_NAME: cert_mgmt
+  LAMBDA_DIR: cert_mgmt
 
 jobs:
   build-and-upload:

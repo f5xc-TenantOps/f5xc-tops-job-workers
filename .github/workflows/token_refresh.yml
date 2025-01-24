@@ -8,15 +8,10 @@ on:
     paths:
       - 'token_refresh/**'
   workflow_dispatch:
-    inputs:
-      lambda_name:
-        description: "Name of the Lambda function directory"
-        default: "token_refresh"
-        required: true
 
 env:
-  LAMBDA_NAME: ${{ github.event.inputs.lambda_name }}
-  LAMBDA_DIR: ${{ github.event.inputs.lambda_name }}
+  LAMBDA_NAME: token_refresh
+  LAMBDA_DIR: token_refresh
 
 jobs:
   build-and-upload:
