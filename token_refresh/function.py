@@ -56,9 +56,12 @@ def main():
             "body": f"Token {params['token-name']} refreshed successfully.",
         }
     except Exception as e:
-        error_message = f"Error: {e}"
-        print(error_message)
-        raise RuntimeError(error_message) from e
+        err = {
+            "statusCode": 500,
+            "body": f"Error: {e}",
+        }
+        print(err)
+        raise RuntimeError(err) from e
 
     print(res)
     return res
