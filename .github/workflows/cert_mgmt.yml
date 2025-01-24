@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'cert_mgmt/**'
+      - '.github/workflows/cert_mgmt.yml'
   workflow_dispatch:
 
 env:
