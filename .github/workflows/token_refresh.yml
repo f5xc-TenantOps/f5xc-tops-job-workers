@@ -35,11 +35,11 @@ jobs:
           if [[ "${{ github.ref_name }}" == "dev" ]]; then
             echo "ZIP_NAME=${{ env.LAMBDA_NAME }}_dev.zip" >> $GITHUB_ENV
             echo "S3_KEY=lambda/${{ env.LAMBDA_NAME }}_dev.zip" >> $GITHUB_ENV
-            echo "S3_BUCKET=tops-lambda-functions-dev" >> $GITHUB_ENV
+            echo "S3_BUCKET=tops-lambda-bucket-dev" >> $GITHUB_ENV
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
             echo "ZIP_NAME=${{ env.LAMBDA_NAME }}.zip" >> $GITHUB_ENV
             echo "S3_KEY=lambda/${{ env.LAMBDA_NAME }}.zip" >> $GITHUB_ENV
-            echo "S3_BUCKET=tops-lambda-functions" >> $GITHUB_ENV
+            echo "S3_BUCKET=tops-lambda-bucket" >> $GITHUB_ENV
           fi
 
       # Step 4: Install dependencies
