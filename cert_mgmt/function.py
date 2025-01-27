@@ -39,9 +39,8 @@ def upload_cert_to_tenant(_api: cert, name: str, cert_data: str, key_data: str, 
         if cert_exists(_api, name, namespace):
             _api.replace(payload=payload, name=name, namespace=namespace)
             return f"Certificate '{name}' replaced in namespace '{namespace}'."
-        else:
-            _api.create(payload=payload, namespace=namespace)
-            return f"Certificate '{name}' created in namespace '{namespace}'."
+        _api.create(payload=payload, namespace=namespace)
+        return f"Certificate '{name}' created in namespace '{namespace}'."
     except Exception as e:
         raise RuntimeError(f"Failed to upload or update certificate: {e}") from e
 
@@ -53,13 +52,13 @@ def main():
     try:
         base_path = os.environ.get("SSM_BASE_PATH")
         bucket_name = os.environ.get("S3_BUCKET")
+        cert_name = os.environ.get("CERT_NAME")
         if not base_path or not bucket_name:
             raise RuntimeError("Missing required environment variables: SSM_BASE_PATH or S3_BUCKET.")
 
         region = boto3.session.Session().region_name or "us-west-2"
         params = get_parameters(
             [
-                f"{base_path}/wildcard-cert-name",
                 f"{base_path}/tenant-url",
                 f"{base_path}/token-value"
             ],
@@ -70,18 +69,18 @@ def main():
         _api = cert(auth)
 
         s3_client = boto3.client("s3")
-        cert_path = f"{params[f'{base_path}/wildcard-cert-name']}/fullchain.pem"
-        key_path = f"{params[f'{base_path}/wildcard-cert-name']}/privkey.pem"
+        cert_path = f"{cert_name}/fullchain.pem"
+        key_path = f"{cert_name}/privkey.pem"
 
         cert_data = s3_client.get_object(Bucket=bucket_name, Key=cert_path)["Body"].read().decode("utf-8")
         key_data = s3_client.get_object(Bucket=bucket_name, Key=key_path)["Body"].read().decode("utf-8")
 
         job = upload_cert_to_tenant(
             _api=_api,
-            name=params[f"{base_path}/wildcard-cert-name"],
+            name=cert_name,
             cert_data=cert_data,
             key_data=key_data,
-            namespace=params.get(f"{base_path}/wildcard-cert-ns", "shared")
+            namespace="shared"
         )
 
         res = {
