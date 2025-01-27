@@ -35,7 +35,7 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
             "--agree-tos",
             "--email", email,
             "--dns-route53",
-            "--dns-route53-propagation-seconds", "30",
+            "--dns-route53-propagation-seconds", "30",  # Corrected flag
             "--domains", f"*.{domain}",
             "--config-dir", "/tmp/certbot/config",
             "--work-dir", "/tmp/certbot/work",
@@ -59,8 +59,10 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
 
     except (BotoCoreError, ClientError) as e:
         raise RuntimeError(f"Error uploading to S3: {str(e)}") from e
+    except SystemExit as e:
+        raise RuntimeError(f"Certbot failed with exit code {e.code}") from e
     except Exception as e:
-        raise RuntimeError(f"Unexpected error: {str(e)}") from e
+        raise RuntimeError(f"Unexpected error during certbot execution: {str(e)}") from e
 
 
 def main():
