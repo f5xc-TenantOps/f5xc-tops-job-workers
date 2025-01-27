@@ -16,18 +16,17 @@ def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
         response = ssm.get_parameters(Names=parameters, WithDecryption=True)
         return {param["Name"].split("/")[-1]: param["Value"] for param in response["Parameters"]}
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch parameters: {e}") from e
+        raise RuntimeError(f"Failed to fetch parameters: {e}")
 
 
 def cert_exists(_api: cert, name: str, namespace: str = "shared") -> bool:
     """
     Check if a certificate exists in the tenant.
     """
-    try:
-        certs = _api.list(namespace)["items"]
-        return any(c["name"] == name for c in certs)
-    except Exception as e:
-        raise RuntimeError(f"Unable to check certificate existence: {e}") from e
+    certs = _api.list(namespace)
+    if not certs:
+        raise RuntimeError(f"Failed to retrieve certificate list for namespace '{namespace}'.")
+    return any(c["name"] == name for c in certs)
 
 
 def upload_cert_to_tenant(_api: cert, name: str, cert_data: str, key_data: str, namespace: str = "shared") -> str:
@@ -41,6 +40,8 @@ def upload_cert_to_tenant(_api: cert, name: str, cert_data: str, key_data: str, 
             return f"Certificate '{name}' replaced in namespace '{namespace}'."
         _api.create(payload=payload, namespace=namespace)
         return f"Certificate '{name}' created in namespace '{namespace}'."
+    except RuntimeError as e:
+        raise e  # Let errors from `cert_exists` propagate directly
     except Exception as e:
         raise RuntimeError(f"Failed to upload or update certificate: {e}") from e
 
@@ -94,7 +95,7 @@ def main():
             "body": f"Error: {e}"
         }
         print(err)
-        raise RuntimeError(err) from e
+        raise RuntimeError(err)
 
     print(res)
     return res
