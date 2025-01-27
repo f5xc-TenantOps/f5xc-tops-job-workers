@@ -2,6 +2,7 @@
 Manage wildcard certificate in a tenant.
 """
 import os
+import base64
 import boto3
 from f5xc_tops_py_client import session, cert
 
@@ -34,9 +35,12 @@ def upload_cert_to_tenant(_api, name: str, cert_data: str, key_data: str, namesp
     Upload or update a certificate in the tenant.
     """
     try:
-        payload = _api.create_payload(name=name, namespace=namespace, cert=cert_data, key=key_data)
-        print(payload)
-        print(cert_exists(_api, name, namespace))
+        # Base64 encode the cert and key
+        cert_b64 = base64.b64encode(cert_data.encode("utf-8")).decode("utf-8")
+        key_b64 = base64.b64encode(key_data.encode("utf-8")).decode("utf-8")
+
+        payload = _api.create_payload(name=name, namespace=namespace, cert=cert_b64, key=key_b64)
+
         if cert_exists(_api, name, namespace):
             _api.replace(payload=payload, name=name, namespace=namespace)
             return f"Certificate '{name}' replaced in namespace '{namespace}'."
@@ -95,7 +99,7 @@ def main():
             "body": f"Error: {e}"
         }
         print(err)
-        raise RuntimeError(err)
+        raise RuntimeError(err) from e
 
     print(res)
     return res
