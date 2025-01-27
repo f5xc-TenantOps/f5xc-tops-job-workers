@@ -35,7 +35,6 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
             "--agree-tos",
             "--email", email,
             "--dns-route53",
-            "--dns-route53-propagation-seconds", "30",  # Corrected flag
             "--domains", f"*.{domain}",
             "--config-dir", "/tmp/certbot/config",
             "--work-dir", "/tmp/certbot/work",
