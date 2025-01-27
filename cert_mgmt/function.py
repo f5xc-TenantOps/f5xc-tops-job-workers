@@ -36,8 +36,8 @@ def upload_cert_to_tenant(_api, name: str, cert_data: str, key_data: str, namesp
     """
     try:
         # Base64 encode the cert and key
-        cert_b64 = base64.b64encode(cert_data.encode("utf-8")).decode("utf-8")
-        key_b64 = base64.b64encode(key_data.encode("utf-8")).decode("utf-8")
+        cert_b64 = base64.b64encode(cert_data).decode("utf-8")
+        key_b64 = base64.b64encode(key_data).decode("utf-8")
 
         payload = _api.create_payload(name=name, namespace=namespace, cert=cert_b64, key=key_b64)
 
@@ -77,8 +77,9 @@ def main():
         cert_path = f"{cert_name}/fullchain.pem"
         key_path = f"{cert_name}/privkey.pem"
 
-        cert_data = s3_client.get_object(Bucket=bucket_name, Key=cert_path)["Body"].read().decode("utf-8")
-        key_data = s3_client.get_object(Bucket=bucket_name, Key=key_path)["Body"].read().decode("utf-8")
+        # Fetch the raw cert and key data from S3
+        cert_data = s3_client.get_object(Bucket=bucket_name, Key=cert_path)["Body"].read()
+        key_data = s3_client.get_object(Bucket=bucket_name, Key=key_path)["Body"].read()
 
         job = upload_cert_to_tenant(
             _api=_api,
@@ -99,7 +100,7 @@ def main():
             "body": f"Error: {e}"
         }
         print(err)
-        raise RuntimeError(err) from e
+        raise RuntimeError(err)
 
     print(res)
     return res
