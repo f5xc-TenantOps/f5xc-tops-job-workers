@@ -16,10 +16,10 @@ def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
         response = ssm.get_parameters(Names=parameters, WithDecryption=True)
         return {param["Name"].split("/")[-1]: param["Value"] for param in response["Parameters"]}
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch parameters: {e}")
+        raise RuntimeError(f"Failed to fetch parameters: {e}") from e
 
 
-def cert_exists(_api: cert, name: str, namespace: str = "shared") -> bool:
+def cert_exists(_api, name: str, namespace: str = "shared") -> bool:
     """
     Check if a certificate exists in the tenant.
     """
@@ -29,19 +29,19 @@ def cert_exists(_api: cert, name: str, namespace: str = "shared") -> bool:
     return any(c["name"] == name for c in certs)
 
 
-def upload_cert_to_tenant(_api: cert, name: str, cert_data: str, key_data: str, namespace: str = "shared") -> str:
+def upload_cert_to_tenant(_api, name: str, cert_data: str, key_data: str, namespace: str = "shared") -> str:
     """
     Upload or update a certificate in the tenant.
     """
     try:
         payload = _api.create_payload(name=name, namespace=namespace, cert=cert_data, key=key_data)
+        print(payload)
+        print(cert_exists(_api, name, namespace))
         if cert_exists(_api, name, namespace):
             _api.replace(payload=payload, name=name, namespace=namespace)
             return f"Certificate '{name}' replaced in namespace '{namespace}'."
         _api.create(payload=payload, namespace=namespace)
         return f"Certificate '{name}' created in namespace '{namespace}'."
-    except RuntimeError as e:
-        raise e  # Let errors from `cert_exists` propagate directly
     except Exception as e:
         raise RuntimeError(f"Failed to upload or update certificate: {e}") from e
 
