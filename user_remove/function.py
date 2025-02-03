@@ -1,5 +1,5 @@
 """
-Remove a user from an F5 XC tenant based on an SQS message.
+Remove a user from an F5 XC tenant.
 """
 import json
 import boto3
@@ -19,15 +19,15 @@ def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
         raise RuntimeError(f"Failed to fetch parameters: {e}") from e
 
 
-def validate_sqs_message(message: dict):
+def validate_payload(payload: dict):
     """
-    Validate the SQS message for required fields.
+    Validate the payload for required fields.
     """
     required_fields = ["ssm_base_path", "email"]
-    missing_fields = [field for field in required_fields if field not in message]
+    missing_fields = [field for field in required_fields if field not in payload]
 
     if missing_fields:
-        raise RuntimeError(f"Missing required fields in SQS message: {', '.join(missing_fields)}")
+        raise RuntimeError(f"Missing required fields in payload: {', '.join(missing_fields)}")
 
 
 def remove_user_from_tenant(_api, email: str) -> str:
@@ -41,16 +41,15 @@ def remove_user_from_tenant(_api, email: str) -> str:
         raise RuntimeError(f"Failed to remove user: {e}") from e
 
 
-def main(event: dict):
+def main(payload: dict):
     """
-    Main function to process SQS message and remove user.
+    Main function to process the payload and remove the user.
     """
     try:
-        message = json.loads(event["Records"][0]["body"])  # Assuming one message per event
-        validate_sqs_message(message)
+        validate_payload(payload)
 
-        ssm_base_path = message["ssm_base_path"]
-        email = message["email"]
+        ssm_base_path = payload["ssm_base_path"]
+        email = payload["email"]
 
         region = boto3.session.Session().region_name or "us-west-2"
         params = get_parameters(
@@ -87,19 +86,13 @@ def lambda_handler(event, context):
     """
     AWS Lambda entry point.
     """
-    return main(event)
+    return main(event)  # Directly pass the event (payload) as input
 
 
 if __name__ == "__main__":
-    # Simulated SQS event for local testing
-    test_event = {
-        "Records": [
-            {
-                "body": json.dumps({
-                    "ssm_base_path": "/tenantOps/app-lab",
-                    "email": "john.doe@example.com"
-                })
-            }
-        ]
+    # Simulated direct payload for local testing
+    test_payload = {
+        "ssm_base_path": "/tenantOps/app-lab",
+        "email": "john.doe@example.com"
     }
-    main(test_event)
+    main(test_payload)

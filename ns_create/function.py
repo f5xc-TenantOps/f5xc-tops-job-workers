@@ -1,5 +1,5 @@
 """
-Create a namespace in an F5 XC tenant from an SQS message.
+Create a namespace in an F5 XC tenant.
 """
 import json
 import boto3
@@ -19,15 +19,15 @@ def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
         raise RuntimeError(f"Failed to fetch parameters: {e}") from e
 
 
-def validate_sqs_message_create_ns(message: dict):
+def validate_payload_create_ns(payload: dict):
     """
-    Validate the SQS message for creating a namespace.
+    Validate the payload for required fields.
     """
     required_fields = ["ssm_base_path", "namespace_name", "description"]
-    missing_fields = [field for field in required_fields if field not in message]
+    missing_fields = [field for field in required_fields if field not in payload]
 
     if missing_fields:
-        raise RuntimeError(f"Missing required fields in SQS message: {', '.join(missing_fields)}")
+        raise RuntimeError(f"Missing required fields in payload: {', '.join(missing_fields)}")
 
 
 def create_namespace_in_tenant(_api, namespace_name: str, description: str) -> str:
@@ -42,17 +42,16 @@ def create_namespace_in_tenant(_api, namespace_name: str, description: str) -> s
         raise RuntimeError(f"Failed to create namespace: {e}") from e
 
 
-def main_create_ns(event: dict):
+def main_create_ns(payload: dict):
     """
-    Main function to process SQS message and create namespace.
+    Main function to process the payload and create a namespace.
     """
     try:
-        message = json.loads(event["Records"][0]["body"])  # Assuming one message per event
-        validate_sqs_message_create_ns(message)
+        validate_payload_create_ns(payload)
 
-        ssm_base_path = message["ssm_base_path"]
-        namespace_name = message["namespace_name"]
-        description = message["description"]
+        ssm_base_path = payload["ssm_base_path"]
+        namespace_name = payload["namespace_name"]
+        description = payload["description"]
 
         region = boto3.session.Session().region_name or "us-west-2"
         params = get_parameters(
@@ -97,15 +96,10 @@ def lambda_handler_create_ns(event, context):
 
 
 if __name__ == "__main__":
-    test_event_create_ns = {
-        "Records": [
-            {
-                "body": json.dumps({
-                    "ssm_base_path": "/tenantOps/app-lab",
-                    "namespace_name": "app-namespace",
-                    "description": "Namespace for application workloads"
-                })
-            }
-        ]
+    # Simulated direct payload for local testing
+    test_payload_create_ns = {
+        "ssm_base_path": "/tenantOps/app-lab",
+        "namespace_name": "app-namespace",
+        "description": "Namespace for application workloads"
     }
-    main_create_ns(test_event_create_ns)
+    main_create_ns(test_payload_create_ns)

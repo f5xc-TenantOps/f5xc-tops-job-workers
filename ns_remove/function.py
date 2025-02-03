@@ -1,5 +1,5 @@
 """
-Remove a namespace in an F5 XC tenant from an SQS message.
+Remove a namespace in an F5 XC tenant.
 """
 import json
 import boto3
@@ -19,15 +19,15 @@ def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
         raise RuntimeError(f"Failed to fetch parameters: {e}") from e
 
 
-def validate_sqs_message_remove_ns(message: dict):
+def validate_payload_remove_ns(payload: dict):
     """
-    Validate the SQS message for removing a namespace.
+    Validate the payload for required fields.
     """
     required_fields = ["ssm_base_path", "namespace_name"]
-    missing_fields = [field for field in required_fields if field not in message]
+    missing_fields = [field for field in required_fields if field not in payload]
 
     if missing_fields:
-        raise RuntimeError(f"Missing required fields in SQS message: {', '.join(missing_fields)}")
+        raise RuntimeError(f"Missing required fields in payload: {', '.join(missing_fields)}")
 
 
 def remove_namespace_from_tenant(_api, namespace_name: str) -> str:
@@ -41,16 +41,15 @@ def remove_namespace_from_tenant(_api, namespace_name: str) -> str:
         raise RuntimeError(f"Failed to remove namespace: {e}") from e
 
 
-def main_remove_ns(event: dict):
+def main_remove_ns(payload: dict):
     """
-    Main function to process SQS message and remove namespace.
+    Main function to process the payload and remove the namespace.
     """
     try:
-        message = json.loads(event["Records"][0]["body"])  # Assuming one message per event
-        validate_sqs_message_remove_ns(message)
+        validate_payload_remove_ns(payload)
 
-        ssm_base_path = message["ssm_base_path"]
-        namespace_name = message["namespace_name"]
+        ssm_base_path = payload["ssm_base_path"]
+        namespace_name = payload["namespace_name"]
 
         region = boto3.session.Session().region_name or "us-west-2"
         params = get_parameters(
@@ -94,14 +93,9 @@ def lambda_handler_remove_ns(event, context):
 
 
 if __name__ == "__main__":
-    test_event_remove_ns = {
-        "Records": [
-            {
-                "body": json.dumps({
-                    "ssm_base_path": "/tenantOps/app-lab",
-                    "namespace_name": "app-namespace"
-                })
-            }
-        ]
+    # Simulated direct payload for local testing
+    test_payload_remove_ns = {
+        "ssm_base_path": "/tenantOps/app-lab",
+        "namespace_name": "app-namespace"
     }
-    main_remove_ns(test_event_remove_ns)
+    main_remove_ns(test_payload_remove_ns)
