@@ -158,6 +158,6 @@ if __name__ == "__main__":
         "last_name": "Ops",
         "email": "tops@f5demos.com",
         "group_names": [],
-        "namespace_roles": [{"namespace": "default", "role": "ves-io-monitor"}]
+        "namespace_roles": [{"namespace": "default", "role": "ves-io-monitor-role"}]
     }
     main(test_payload)
