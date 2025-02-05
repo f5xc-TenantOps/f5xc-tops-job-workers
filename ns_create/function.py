@@ -23,14 +23,14 @@ def validate_payload_create_ns(payload: dict):
     """
     Validate the payload for required fields.
     """
-    required_fields = ["ssm_base_path", "namespace_name", "description"]
+    required_fields = ["ssm_base_path", "namespace_name"]
     missing_fields = [field for field in required_fields if field not in payload]
 
     if missing_fields:
         raise RuntimeError(f"Missing required fields in payload: {', '.join(missing_fields)}")
 
 
-def create_namespace_in_tenant(_api, namespace_name: str, description: str) -> str:
+def create_namespace_in_tenant(_api, namespace_name: str, description: str = "") -> str:
     """
     Create a namespace in the tenant.
     """
@@ -68,7 +68,7 @@ def main(payload: dict):
 
         ssm_base_path = payload["ssm_base_path"]
         namespace_name = payload["namespace_name"]
-        description = payload["description"]
+        description = payload.get("description", "") 
 
         region = boto3.session.Session().region_name
         params = get_parameters(
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     # Simulated direct payload for local testing
     test_payload_create_ns = {
         "ssm_base_path": "/tenantOps/app-lab",
-        "namespace_name": "app-namespace",
-        "description": "Namespace for application workloads"
+        "namespace_name": "snarky-petname",
+        "description": "testing namespace creation"
     }
     main(test_payload_create_ns)
