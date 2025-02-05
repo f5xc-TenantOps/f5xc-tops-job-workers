@@ -1,6 +1,7 @@
 """
-UDF Lab Worker - Processes a new DynamoDB record to create a namespace and a user in an F5 XC tenant,
-tracking the state of the deployment with expiration handling.
+UDF Lab Worker & Cleanup - Handles both record INSERT and REMOVE events from DynamoDB Streams.
+- On INSERT: Creates a namespace and user in an F5 XC tenant, updating the state.
+- On REMOVE: Removes the user and namespace when the TTL expires, updating the state.
 """
 import json
 import os
@@ -14,18 +15,54 @@ dynamodb = boto3.client("dynamodb")
 # Retrieve Lambda function names from environment variables
 CREATE_NAMESPACE_LAMBDA = os.getenv("CREATE_NAMESPACE_LAMBDA_ARN")
 CREATE_USER_LAMBDA = os.getenv("CREATE_USER_LAMBDA_ARN")
+REMOVE_NAMESPACE_LAMBDA = os.getenv("REMOVE_NAMESPACE_LAMBDA_ARN")
+REMOVE_USER_LAMBDA = os.getenv("REMOVE_USER_LAMBDA_ARN")
 LAB_SETTINGS_TABLE = os.getenv("LAB_SETTINGS_TABLE")
+DEPLOYMENT_STATE_TABLE = os.getenv("DEPLOYMENT_STATE_TABLE")
 
 
-def validate_record(record: dict):
+def invoke_lambda(function_name: str, payload: dict) -> dict:
     """
-    Validate that the record contains the required fields.
+    Invoke another Lambda function synchronously.
     """
-    required_fields = ["deployment_id", "lab_id", "email", "namespace_name"]
-    missing_fields = [field for field in required_fields if field not in record]
+    try:
+        response = lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload)
+        )
+        return json.loads(response['Payload'].read())
+    except Exception as e:
+        raise RuntimeError(f"Failed to invoke Lambda '{function_name}': {e}") from e
 
-    if missing_fields:
-        raise RuntimeError(f"Missing required fields in record: {', '.join(missing_fields)}")
+
+def update_deployment_state(deployment_id: str, step: str, status: str, details: str = None):
+    """
+    Update the state of the deployment in DynamoDB.
+    """
+    try:
+        expiration_timestamp = int(time.time()) + 300  # Extend TTL by 5 minutes
+
+        update_expression = "SET #s = :status, ttl = :ttl, updated_at = :timestamp"
+        expression_values = {
+            ":status": {"S": status},
+            ":timestamp": {"N": str(int(time.time()))},
+            ":ttl": {"N": str(expiration_timestamp)}
+        }
+
+        if details:
+            update_expression += ", details = :details"
+            expression_values[":details"] = {"S": details}
+
+        dynamodb.update_item(
+            TableName=DEPLOYMENT_STATE_TABLE,
+            Key={"deployment_id": {"S": deployment_id}},
+            UpdateExpression=update_expression,
+            ExpressionAttributeNames={"#s": step},
+            ExpressionAttributeValues=expression_values
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to update deployment state in DynamoDB: {e}") from e
 
 
 def get_lab_info(lab_id: str, table_name: str) -> dict:
@@ -58,41 +95,26 @@ def get_lab_info(lab_id: str, table_name: str) -> dict:
 
         return lab_info
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch tenant info from DynamoDB: {e}") from e
+        raise RuntimeError(f"Failed to fetch lab info from DynamoDB: {e}") from e
 
 
-def invoke_lambda(function_name: str, payload: dict) -> dict:
+def process_insert(record: dict):
     """
-    Invoke another Lambda function synchronously.
-    """
-    try:
-        response = lambda_client.invoke(
-            FunctionName=function_name,
-            InvocationType="RequestResponse",
-            Payload=json.dumps(payload)
-        )
-        return json.loads(response['Payload'].read())
-    except Exception as e:
-        raise RuntimeError(f"Failed to invoke Lambda '{function_name}': {e}") from e
-
-
-def process_record(record: dict):
-    """
-    Process a single record from the DynamoDB stream.
+    Handle a new record INSERT event from the DynamoDB stream.
     """
     try:
-        # Extract the new image from the record
         new_image = record["dynamodb"]["NewImage"]
 
-        # Convert DynamoDB JSON to standard JSON
         deployment_id = new_image["deployment_id"]["S"]
         lab_id = new_image["lab_id"]["S"]
         email = new_image["email"]["S"]
         adjective_animal = new_image["namespace_name"]["S"]
 
-        # Validate environment variables
+        update_deployment_state(deployment_id, "deployment_status", "IN_PROGRESS", "Starting deployment")
+
+        # Validate required environment variables
         if not CREATE_NAMESPACE_LAMBDA or not CREATE_USER_LAMBDA or not LAB_SETTINGS_TABLE:
-            raise RuntimeError("Missing required environment variables: CREATE_NAMESPACE_LAMBDA_ARN, CREATE_USER_LAMBDA_ARN, or LAB_SETTINGS_TABLE.")
+            raise RuntimeError("Missing required environment variables.")
 
         # Fetch lab settings from DynamoDB
         lab_info = get_lab_info(lab_id, LAB_SETTINGS_TABLE)
@@ -111,11 +133,13 @@ def process_record(record: dict):
                 "description": f"Namespace for {deployment_id}"
             }
 
+            update_deployment_state(deployment_id, "create_namespace", "IN_PROGRESS", "Creating namespace")
             namespace_response = invoke_lambda(CREATE_NAMESPACE_LAMBDA, namespace_payload)
             if namespace_response.get("statusCode") != 200:
+                update_deployment_state(deployment_id, "create_namespace", "FAILED", namespace_response.get("body"))
                 raise RuntimeError(f"Failed to create namespace: {namespace_response.get('body')}")
 
-            # Add the new namespace to namespace_roles
+            update_deployment_state(deployment_id, "create_namespace", "SUCCESS", namespace_response.get("body"))
             namespace_roles.append({"namespace": adjective_animal, "role": "admin"})
 
         # Step 2: Create User
@@ -128,20 +152,52 @@ def process_record(record: dict):
             "namespace_roles": namespace_roles
         }
 
+        update_deployment_state(deployment_id, "create_user", "IN_PROGRESS", "Creating user")
         user_response = invoke_lambda(CREATE_USER_LAMBDA, user_payload)
         if user_response.get("statusCode") != 200:
+            update_deployment_state(deployment_id, "create_user", "FAILED", user_response.get("body"))
             raise RuntimeError(f"Failed to create user: {user_response.get('body')}")
+
+        update_deployment_state(deployment_id, "create_user", "SUCCESS", user_response.get("body"))
 
         # Step 3: Execute Pre-Lambda
         if pre_lambda:
-            pre_lambda_payload = {
-                "ssm_base_path": ssm_base_path,
-                "namespace_name": adjective_animal
-            }
+            update_deployment_state(deployment_id, "pre_lambda", "IN_PROGRESS", "Executing pre-lambda")
+            pre_lambda_payload = {"ssm_base_path": ssm_base_path, "namespace_name": adjective_animal}
             invoke_lambda(pre_lambda, pre_lambda_payload)
+            update_deployment_state(deployment_id, "pre_lambda", "SUCCESS", "Pre-lambda executed successfully")
 
     except Exception as e:
-        print(f"Error processing record: {e}")
+        update_deployment_state(deployment_id, "deployment_status", "FAILED", str(e))
+        print(f"Error processing INSERT record: {e}")
+        raise
+
+
+def process_remove(record: dict):
+    """
+    Handle a record REMOVAL event from the DynamoDB stream (TTL expiration).
+    """
+    try:
+        deployment_id = record["deployment_id"]["S"]
+        namespace_name = record["namespace_name"]["S"]
+        email = record["email"]["S"]
+        ssm_base_path = record["ssm_base_path"]["S"]
+
+        update_deployment_state(deployment_id, "cleanup_status", "IN_PROGRESS", "Starting cleanup")
+
+        # Step 1: Remove User
+        user_payload = {"ssm_base_path": ssm_base_path, "email": email}
+        invoke_lambda(REMOVE_USER_LAMBDA, user_payload)
+
+        # Step 2: Remove Namespace
+        namespace_payload = {"ssm_base_path": ssm_base_path, "namespace_name": namespace_name}
+        invoke_lambda(REMOVE_NAMESPACE_LAMBDA, namespace_payload)
+
+        update_deployment_state(deployment_id, "cleanup_status", "COMPLETED", "Cleanup completed successfully")
+
+    except Exception as e:
+        update_deployment_state(deployment_id, "cleanup_status", "FAILED", str(e))
+        print(f"Error processing REMOVE record: {e}")
         raise
 
 
@@ -150,6 +206,7 @@ def lambda_handler(event, context):
     AWS Lambda entry point for handling DynamoDB stream events.
     """
     for record in event["Records"]:
-        # Only process new INSERT records
         if record["eventName"] == "INSERT":
-            process_record(record)
+            process_insert(record)
+        elif record["eventName"] == "REMOVE":
+            process_remove(record)
