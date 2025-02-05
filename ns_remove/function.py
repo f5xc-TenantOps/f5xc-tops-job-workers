@@ -6,7 +6,7 @@ import boto3
 from f5xc_tops_py_client import session, ns
 
 
-def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
+def get_parameters(parameters: list, region_name: str = "us-east-1") -> dict:
     """
     Fetch parameters from AWS Parameter Store.
     """
@@ -51,7 +51,7 @@ def main(payload: dict):
         ssm_base_path = payload["ssm_base_path"]
         namespace_name = payload["namespace_name"]
 
-        region = boto3.session.Session().region_name or "us-west-2"
+        region = boto3.session.Session().region_name
         params = get_parameters(
             [
                 f"{ssm_base_path}/tenant-url",

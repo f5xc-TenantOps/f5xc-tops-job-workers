@@ -88,7 +88,7 @@ def main(payload: dict):
         group_names = payload.get("group_names", [])
         namespace_roles = payload.get("namespace_roles", [])
 
-        region = boto3.session.Session().region_name or "us-west-2"
+        region = boto3.session.Session().region_name
         params = get_parameters(
             [
                 f"{ssm_base_path}/tenant-url",

@@ -51,7 +51,7 @@ def main(payload: dict):
         ssm_base_path = payload["ssm_base_path"]
         email = payload["email"]
 
-        region = boto3.session.Session().region_name or "us-west-2"
+        region = boto3.session.Session().region_name
         params = get_parameters(
             [
                 f"{ssm_base_path}/tenant-url",
