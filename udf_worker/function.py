@@ -1,8 +1,9 @@
 """
-UDF Lab Worker - Processes an SQS message to create a namespace and a user in an F5 XC tenant,
+UDF Lab Worker - Processes a new DynamoDB record to create a namespace and a user in an F5 XC tenant,
 tracking the state of the deployment with expiration handling.
 """
 import json
+import os
 import time
 from datetime import datetime
 import boto3
@@ -10,21 +11,26 @@ import boto3
 lambda_client = boto3.client("lambda")
 dynamodb = boto3.client("dynamodb")
 
+# Retrieve Lambda function names from environment variables
+CREATE_NAMESPACE_LAMBDA = os.getenv("CREATE_NAMESPACE_LAMBDA_ARN")
+CREATE_USER_LAMBDA = os.getenv("CREATE_USER_LAMBDA_ARN")
+LAB_SETTINGS_TABLE = os.getenv("LAB_SETTINGS_TABLE")
 
-def validate_payload(payload: dict):
+
+def validate_record(record: dict):
     """
-    Validate the payload for required fields.
+    Validate that the record contains the required fields.
     """
     required_fields = ["deployment_id", "lab_id", "email", "namespace_name"]
-    missing_fields = [field for field in required_fields if field not in payload]
+    missing_fields = [field for field in required_fields if field not in record]
 
     if missing_fields:
-        raise RuntimeError(f"Missing required fields in payload: {', '.join(missing_fields)}")
+        raise RuntimeError(f"Missing required fields in record: {', '.join(missing_fields)}")
 
 
-def get_lab_info(lab_id: str, table_name: str = "TenantInfo") -> dict:
+def get_lab_info(lab_id: str, table_name: str) -> dict:
     """
-    Fetch tenant information from DynamoDB using the lab ID.
+    Fetch lab information from DynamoDB using the lab ID.
     """
     try:
         response = dynamodb.get_item(
@@ -34,40 +40,25 @@ def get_lab_info(lab_id: str, table_name: str = "TenantInfo") -> dict:
         if "Item" not in response:
             raise RuntimeError(f"Lab ID '{lab_id}' not found in DynamoDB.")
 
-        return {k: list(v.values())[0] for k, v in response["Item"].items()}
-    except Exception as e:
-        raise RuntimeError(f"Failed to fetch tenant info from DynamoDB: {e}") from e
+        item = response["Item"]
 
+        required_fields = ["ssm_base_path", "group_names", "namespace_roles", "user_ns"]
+        missing_fields = [field for field in required_fields if field not in item]
+        if missing_fields:
+            raise RuntimeError(f"Missing required fields in lab info: {', '.join(missing_fields)}")
 
-def update_deployment_state(deployment_id: str, step: str, status: str, details: str = None, table_name: str = "LabDeploymentState"):
-    """
-    Update the state of the deployment in DynamoDB and extend expiration time.
-    """
-    try:
-        expiration_timestamp = int(time.time()) + 300  # 5 minutes from now
-        human_readable_expiration = datetime.utcfromtimestamp(expiration_timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
-
-        update_expression = "SET #s = :status, expiration = :expiration, ttl = :ttl, updated_at = :timestamp"
-        expression_values = {
-            ":status": {"S": status},
-            ":timestamp": {"N": str(int(time.time()))},
-            ":expiration": {"S": human_readable_expiration},
-            ":ttl": {"N": str(expiration_timestamp)}  # TTL field for DynamoDB expiration
+        lab_info = {
+            "ssm_base_path": item["ssm_base_path"]["S"],
+            "group_names": [g["S"] for g in item["group_names"]["L"]],
+            "namespace_roles": [{"namespace": role["M"]["namespace"]["S"], "role": role["M"]["role"]["S"]} for role in item["namespace_roles"]["L"]],
+            "user_ns": item["user_ns"]["BOOL"]
         }
 
-        if details:
-            update_expression += ", details = :details"
-            expression_values[":details"] = {"S": details}
+        lab_info["pre_lambda"] = item.get("pre_lambda", {}).get("S", None)
 
-        dynamodb.update_item(
-            TableName=table_name,
-            Key={"deployment_id": {"S": deployment_id}},
-            UpdateExpression=update_expression,
-            ExpressionAttributeNames={"#s": step},
-            ExpressionAttributeValues=expression_values
-        )
+        return lab_info
     except Exception as e:
-        raise RuntimeError(f"Failed to update deployment state in DynamoDB: {e}") from e
+        raise RuntimeError(f"Failed to fetch tenant info from DynamoDB: {e}") from e
 
 
 def invoke_lambda(function_name: str, payload: dict) -> dict:
@@ -85,108 +76,80 @@ def invoke_lambda(function_name: str, payload: dict) -> dict:
         raise RuntimeError(f"Failed to invoke Lambda '{function_name}': {e}") from e
 
 
-def main(event: dict):
+def process_record(record: dict):
     """
-    Main function to process the SQS message and create a namespace and user.
+    Process a single record from the DynamoDB stream.
     """
     try:
-        message = json.loads(event["Records"][0]["body"])  # Assuming one message per event
-        validate_payload(message)
+        # Extract the new image from the record
+        new_image = record["dynamodb"]["NewImage"]
 
-        deployment_id = message["deployment_id"]
-        lab_id = message["lab_id"]
-        email = message["email"]
-        namespace_name = message["namespace_name"]
+        # Convert DynamoDB JSON to standard JSON
+        deployment_id = new_image["deployment_id"]["S"]
+        lab_id = new_image["lab_id"]["S"]
+        email = new_image["email"]["S"]
+        adjective_animal = new_image["namespace_name"]["S"]
 
-        # Initialize deployment state or extend expiration
-        update_deployment_state(deployment_id, "deployment_status", "IN_PROGRESS", "Starting deployment")
+        # Validate environment variables
+        if not CREATE_NAMESPACE_LAMBDA or not CREATE_USER_LAMBDA or not LAB_SETTINGS_TABLE:
+            raise RuntimeError("Missing required environment variables: CREATE_NAMESPACE_LAMBDA_ARN, CREATE_USER_LAMBDA_ARN, or LAB_SETTINGS_TABLE.")
 
-        # Fetch tenant info from DynamoDB
-        tenant_info = get_lab_info(lab_id)
-        ssm_base_path = tenant_info.get("ssm_base_path")
-        if not ssm_base_path:
-            raise RuntimeError(f"Missing 'ssm_base_path' in tenant info for lab ID '{lab_id}'.")
+        # Fetch lab settings from DynamoDB
+        lab_info = get_lab_info(lab_id, LAB_SETTINGS_TABLE)
 
-        update_deployment_state(deployment_id, "fetch_lab_info", "SUCCESS", "Lab info retrieved")
+        ssm_base_path = lab_info["ssm_base_path"]
+        group_names = lab_info["group_names"]
+        namespace_roles = lab_info["namespace_roles"]
+        user_ns = lab_info["user_ns"]
+        pre_lambda = lab_info.get("pre_lambda")
 
-        # Step 1: Create Namespace
-        namespace_payload = {
-            "ssm_base_path": ssm_base_path,
-            "namespace_name": namespace_name,
-            "description": f"Namespace for {lab_id}"
-        }
-        update_deployment_state(deployment_id, "create_namespace", "IN_PROGRESS", "Creating namespace")
+        # Step 1: Conditionally Create Namespace
+        if user_ns:
+            namespace_payload = {
+                "ssm_base_path": ssm_base_path,
+                "namespace_name": adjective_animal,
+                "description": f"Namespace for {deployment_id}"
+            }
 
-        namespace_response = invoke_lambda("CreateNamespaceLambda", namespace_payload)
+            namespace_response = invoke_lambda(CREATE_NAMESPACE_LAMBDA, namespace_payload)
+            if namespace_response.get("statusCode") != 200:
+                raise RuntimeError(f"Failed to create namespace: {namespace_response.get('body')}")
 
-        if namespace_response.get("statusCode") != 200:
-            update_deployment_state(deployment_id, "create_namespace", "FAILED", namespace_response.get("body"))
-            raise RuntimeError(f"Failed to create namespace: {namespace_response.get('body')}")
-
-        update_deployment_state(deployment_id, "create_namespace", "SUCCESS", namespace_response.get("body"))
+            # Add the new namespace to namespace_roles
+            namespace_roles.append({"namespace": adjective_animal, "role": "admin"})
 
         # Step 2: Create User
         user_payload = {
             "ssm_base_path": ssm_base_path,
             "first_name": email.split("@")[0],
             "last_name": "User",
-            "idm_type": "local",
             "email": email,
-            "groups": [],
-            "namespace_roles": [{"namespace": namespace_name, "role": "admin"}]
+            "group_names": group_names,
+            "namespace_roles": namespace_roles
         }
-        update_deployment_state(deployment_id, "create_user", "IN_PROGRESS", "Creating user")
 
-        user_response = invoke_lambda("CreateUserLambda", user_payload)
-
+        user_response = invoke_lambda(CREATE_USER_LAMBDA, user_payload)
         if user_response.get("statusCode") != 200:
-            update_deployment_state(deployment_id, "create_user", "FAILED", user_response.get("body"))
             raise RuntimeError(f"Failed to create user: {user_response.get('body')}")
 
-        update_deployment_state(deployment_id, "create_user", "SUCCESS", user_response.get("body"))
-
-        update_deployment_state(deployment_id, "deployment_status", "COMPLETED", "Deployment completed successfully")
-
-        res = {
-            "statusCode": 200,
-            "body": {
-                "namespace": namespace_response.get("body"),
-                "user": user_response.get("body")
+        # Step 3: Execute Pre-Lambda
+        if pre_lambda:
+            pre_lambda_payload = {
+                "ssm_base_path": ssm_base_path,
+                "namespace_name": adjective_animal
             }
-        }
+            invoke_lambda(pre_lambda, pre_lambda_payload)
 
     except Exception as e:
-        update_deployment_state(deployment_id, "deployment_status", "FAILED", str(e))
-        err = {
-            "statusCode": 500,
-            "body": f"Error: {e}"
-        }
-        print(err)
-        raise RuntimeError(err) from e
-
-    print(res)
-    return res
+        print(f"Error processing record: {e}")
+        raise
 
 
 def lambda_handler(event, context):
     """
-    AWS Lambda entry point.
+    AWS Lambda entry point for handling DynamoDB stream events.
     """
-    return main(event)
-
-
-if __name__ == "__main__":
-    # Simulated SQS event for local testing
-    test_event = {
-        "Records": [
-            {
-                "body": json.dumps({
-                    "deployment_id": "deploy-001",
-                    "lab_id": "lab-123",
-                    "email": "test.user@example.com",
-                    "namespace_name": "test-namespace"
-                })
-            }
-        ]
-    }
-    main(test_event)
+    for record in event["Records"]:
+        # Only process new INSERT records
+        if record["eventName"] == "INSERT":
+            process_record(record)
