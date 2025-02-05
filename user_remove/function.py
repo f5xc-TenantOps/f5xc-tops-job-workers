@@ -34,7 +34,8 @@ def remove_user_from_tenant(_api, email: str) -> str:
     Remove a user from the tenant.
     """
     try:
-        _api.delete(email=email)
+        payload = _api.delete_payload(email=email)
+        _api.delete(payload)
         return f"User with email '{email}' removed successfully."
     except Exception as e:
         raise RuntimeError(f"Failed to remove user: {e}") from e
@@ -92,6 +93,6 @@ if __name__ == "__main__":
     # Simulated direct payload for local testing
     test_payload = {
         "ssm_base_path": "/tenantOps/app-lab",
-        "email": "john.doe@example.com"
+        "email": "tops@f5demos.com"
     }
     main(test_payload)
