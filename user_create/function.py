@@ -107,7 +107,7 @@ def main(payload: dict):
                 _api, first_name, last_name, params["idm-type"], email, group_names, namespace_roles
             )
         except RuntimeError as e:
-            if "already exists" not in str(e):
+            if "already exist" not in str(e):
                 raise  # If it's a different error, re-raise it
             
             # If the user already exists, fetch the current user list
