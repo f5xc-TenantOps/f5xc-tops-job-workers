@@ -35,7 +35,8 @@ def remove_namespace_from_tenant(_api, namespace_name: str) -> str:
     Remove a namespace from the tenant.
     """
     try:
-        _api.delete(name=namespace_name)
+        payload = _api.delete_payload(name=namespace_name)
+        _api.delete(payload)
         return f"Namespace '{namespace_name}' removed successfully."
     except Exception as e:
         raise RuntimeError(f"Failed to remove namespace: {e}") from e
@@ -96,6 +97,6 @@ if __name__ == "__main__":
     # Simulated direct payload for local testing
     test_payload_remove_ns = {
         "ssm_base_path": "/tenantOps/app-lab",
-        "namespace_name": "app-namespace"
+        "namespace_name": "snarky-petname"
     }
     main(test_payload_remove_ns)
