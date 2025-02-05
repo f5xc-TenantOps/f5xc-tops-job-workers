@@ -91,7 +91,7 @@ def main():
             if error_code == "404":
                 print(f"Certificate for {domain} not found in S3. Proceeding to issue a new one.")
             elif error_code == "403":
-                raise RuntimeError(f"Access denied to S3 object: {cert_key}. Check permissions.") from e
+                raise RuntimeError(f"Access denied to S3 object {cert_key}: {e}. Check permissions.") from e
             else:
                 raise RuntimeError(f"Failed to check S3 for existing certificate: {e}") from e
 
