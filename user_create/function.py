@@ -154,11 +154,10 @@ if __name__ == "__main__":
     # Simulated direct payload for local testing
     test_payload = {
         "ssm_base_path": "/tenantOps/app-lab",
-        "first_name": "John",
-        "last_name": "Doe",
-        "idm_type": "SSO",
-        "email": "john.doe@example.com",
-        "group_names": ["admin"],
+        "first_name": "Tenant",
+        "last_name": "Ops",
+        "email": "tops@f5demos.com",
+        "group_names": [],
         "namespace_roles": [{"namespace": "default", "role": "ves-io-monitor"}]
     }
     main(test_payload)
