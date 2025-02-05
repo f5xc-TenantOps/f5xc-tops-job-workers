@@ -22,7 +22,7 @@ def validate_payload(payload: dict):
     """
     Validate the payload for required fields.
     """
-    required_fields = ["ssm_base_path", "first_name", "last_name", "idm_type", "email"]
+    required_fields = ["ssm_base_path", "first_name", "last_name", "email"]
     missing_fields = [field for field in required_fields if field not in payload]
 
     if missing_fields:
