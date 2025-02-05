@@ -5,7 +5,7 @@ import boto3
 from f5xc_tops_py_client import session, user
 
 
-def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
+def get_parameters(parameters: list, region_name: str = "us-east-1") -> dict:
     """
     Fetch parameters from AWS Parameter Store.
     """
