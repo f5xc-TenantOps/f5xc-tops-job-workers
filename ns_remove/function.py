@@ -36,8 +36,7 @@ def remove_namespace_from_tenant(_api, namespace_name: str) -> str:
     """
     try:
         payload = _api.delete_payload(name=namespace_name)
-        print(f"Payload: {json.dumps(payload)}")
-        _api.delete(payload)
+        _api.delete(payload=payload, name=namespace_name)
         return f"Namespace '{namespace_name}' removed successfully."
     except Exception as e:
         raise RuntimeError(f"Failed to remove namespace '{namespace_name}': {e}") from e
