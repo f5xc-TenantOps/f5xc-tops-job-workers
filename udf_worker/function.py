@@ -108,7 +108,7 @@ def process_insert(record: dict):
         deployment_id = new_image["deployment_id"]["S"]
         lab_id = new_image["lab_id"]["S"]
         email = new_image["email"]["S"]
-        adjective_animal = new_image["namespace_name"]["S"]
+        petname = new_image["petname"]["S"]
 
         update_deployment_state(deployment_id, "deployment_status", "IN_PROGRESS", "Starting deployment")
 
@@ -129,7 +129,7 @@ def process_insert(record: dict):
         if user_ns:
             namespace_payload = {
                 "ssm_base_path": ssm_base_path,
-                "namespace_name": adjective_animal,
+                "namespace_name": petname,
                 "description": f"Namespace for {deployment_id}"
             }
 
@@ -140,7 +140,7 @@ def process_insert(record: dict):
                 raise RuntimeError(f"Failed to create namespace: {namespace_response.get('body')}")
 
             update_deployment_state(deployment_id, "create_namespace", "SUCCESS", namespace_response.get("body"))
-            namespace_roles.append({"namespace": adjective_animal, "role": "admin"})
+            namespace_roles.append({"namespace": petname, "role": "ves-io-admin"})
 
         # Step 2: Create User
         user_payload = {
@@ -163,7 +163,7 @@ def process_insert(record: dict):
         # Step 3: Execute Pre-Lambda
         if pre_lambda:
             update_deployment_state(deployment_id, "pre_lambda", "IN_PROGRESS", "Executing pre-lambda")
-            pre_lambda_payload = {"ssm_base_path": ssm_base_path, "namespace_name": adjective_animal}
+            pre_lambda_payload = {"ssm_base_path": ssm_base_path, "namespace_name": petname}
             invoke_lambda(pre_lambda, pre_lambda_payload)
             update_deployment_state(deployment_id, "pre_lambda", "SUCCESS", "Pre-lambda executed successfully")
 
