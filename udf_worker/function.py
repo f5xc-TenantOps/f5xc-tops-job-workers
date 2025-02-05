@@ -4,7 +4,7 @@ tracking the state of the deployment with expiration handling.
 """
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import boto3
 
 lambda_client = boto3.client("lambda")
