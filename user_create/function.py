@@ -104,7 +104,7 @@ def main(payload: dict):
         # Attempt to create the user first
         try:
             result_message = create_user_in_tenant(
-                _api, first_name, last_name, params["idm_type"], email, group_names, namespace_roles
+                _api, first_name, last_name, params["idm-type"], email, group_names, namespace_roles
             )
         except RuntimeError as e:
             if "already exists" not in str(e):
