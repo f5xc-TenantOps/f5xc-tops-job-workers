@@ -41,7 +41,7 @@ def remove_namespace_from_tenant(_api, namespace_name: str) -> str:
         raise RuntimeError(f"Failed to remove namespace: {e}") from e
 
 
-def main_remove_ns(payload: dict):
+def main(payload: dict):
     """
     Main function to process the payload and remove the namespace.
     """
@@ -85,11 +85,11 @@ def main_remove_ns(payload: dict):
     return res
 
 
-def lambda_handler_remove_ns(event, context):
+def lambda_handler(event, context):
     """
     AWS Lambda entry point for removing a namespace.
     """
-    return main_remove_ns(event)
+    return main(event)
 
 
 if __name__ == "__main__":
@@ -98,4 +98,4 @@ if __name__ == "__main__":
         "ssm_base_path": "/tenantOps/app-lab",
         "namespace_name": "app-namespace"
     }
-    main_remove_ns(test_payload_remove_ns)
+    main(test_payload_remove_ns)

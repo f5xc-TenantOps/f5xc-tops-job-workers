@@ -1,7 +1,6 @@
 """
 Remove a user from an F5 XC tenant.
 """
-import json
 import boto3
 from f5xc_tops_py_client import session, user
 
@@ -86,7 +85,7 @@ def lambda_handler(event, context):
     """
     AWS Lambda entry point.
     """
-    return main(event)  # Directly pass the event (payload) as input
+    return main(event)
 
 
 if __name__ == "__main__":

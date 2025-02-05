@@ -1,7 +1,6 @@
 """
-Create a new user in an F5 XC tenant.
+Create or update a user in an F5 XC tenant.
 """
-import json
 import boto3
 from f5xc_tops_py_client import session, user
 
@@ -30,7 +29,18 @@ def validate_payload(payload: dict):
         raise RuntimeError(f"Missing required fields in payload: {', '.join(missing_fields)}")
 
 
-def create_user_in_tenant(_api, first_name: str, last_name: str, idm_type: str, email: str, groups: list, namespace_roles: list) -> str:
+def merge_namespace_roles(existing_roles: list, new_roles: list) -> list:
+    """
+    Merge existing and new namespace roles, ensuring no duplicates.
+    """
+    existing_roles_set = {frozenset(role.items()) for role in existing_roles}
+    new_roles_set = {frozenset(role.items()) for role in new_roles}
+
+    merged_roles = existing_roles_set | new_roles_set  # Union of both sets
+    return [dict(role) for role in merged_roles]  # Convert back to list of dicts
+
+
+def create_user_in_tenant(_api, first_name: str, last_name: str, idm_type: str, email: str, group_names: list, namespace_roles: list) -> str:
     """
     Create a new user in the tenant.
     """
@@ -40,7 +50,7 @@ def create_user_in_tenant(_api, first_name: str, last_name: str, idm_type: str, 
             last_name=last_name,
             idm_type=idm_type,
             email=email,
-            groups=groups,
+            group_names=group_names,
             namespace_roles=namespace_roles
         )
         _api.create(payload)
@@ -49,9 +59,24 @@ def create_user_in_tenant(_api, first_name: str, last_name: str, idm_type: str, 
         raise RuntimeError(f"Failed to create user: {e}") from e
 
 
+def update_user_in_tenant(_api, email: str, merged_roles: list) -> str:
+    """
+    Update an existing user in the tenant with new namespace roles.
+    """
+    try:
+        updated_payload = _api.update_payload(
+            email=email,
+            namespace_roles=merged_roles  # Merged namespace roles
+        )
+        _api.update(updated_payload)
+        return f"User '{email}' updated successfully."
+    except Exception as e:
+        raise RuntimeError(f"Failed to update user: {e}") from e
+
+
 def main(payload: dict):
     """
-    Main function to process the payload and create a user.
+    Main function to process the payload and create or update a user.
     """
     try:
         validate_payload(payload)
@@ -61,7 +86,7 @@ def main(payload: dict):
         last_name = payload["last_name"]
         idm_type = payload["idm_type"]
         email = payload["email"]
-        groups = payload.get("groups", [])
+        group_names = payload.get("group_names", [])
         namespace_roles = payload.get("namespace_roles", [])
 
         region = boto3.session.Session().region_name or "us-west-2"
@@ -76,19 +101,34 @@ def main(payload: dict):
         auth = session(tenant_url=params["tenant-url"], api_token=params["token-value"])
         _api = user(auth)
 
-        job = create_user_in_tenant(
-            _api=_api,
-            first_name=first_name,
-            last_name=last_name,
-            idm_type=idm_type,
-            email=email,
-            groups=groups,
-            namespace_roles=namespace_roles
-        )
+        # Attempt to create the user first
+        try:
+            result_message = create_user_in_tenant(
+                _api, first_name, last_name, idm_type, email, group_names, namespace_roles
+            )
+        except RuntimeError as e:
+            if "already exists" not in str(e):
+                raise  # If it's a different error, re-raise it
+            
+            # If the user already exists, fetch the current user list
+            existing_users = _api.list()
+            existing_user = next((u for u in existing_users if u.get("email") == email), None)
+
+            if existing_user:
+                existing_roles = existing_user.get("namespace_roles", [])
+
+                # Check if namespace_roles are different
+                if existing_roles != namespace_roles:
+                    merged_roles = merge_namespace_roles(existing_roles, namespace_roles)
+                    result_message = update_user_in_tenant(_api, email, merged_roles)
+                else:
+                    result_message = f"User '{email}' already exists with the correct settings. No update needed."
+            else:
+                raise RuntimeError(f"User '{email}' reported existing but was not found in the user list. This should never happen.") from e
 
         res = {
             "statusCode": 200,
-            "body": job
+            "body": result_message
         }
 
     except Exception as e:
@@ -107,7 +147,7 @@ def lambda_handler(event, context):
     """
     AWS Lambda entry point.
     """
-    return main(event)  # Directly pass the event (payload) as input
+    return main(event)
 
 
 if __name__ == "__main__":
@@ -116,7 +156,9 @@ if __name__ == "__main__":
         "ssm_base_path": "/tenantOps/app-lab",
         "first_name": "John",
         "last_name": "Doe",
-        "idm_type": "local",
-        "email": "john.doe@example.com"
+        "idm_type": "SSO",
+        "email": "john.doe@example.com",
+        "group_names": ["admin"],
+        "namespace_roles": [{"namespace": "default", "role": "ves-io-monitor"}]
     }
     main(test_payload)

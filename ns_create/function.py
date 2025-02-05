@@ -1,7 +1,7 @@
 """
-Create a namespace in an F5 XC tenant.
+Create a namespace in an F5 XC tenant and verify its availability.
 """
-import json
+import time
 import boto3
 from f5xc_tops_py_client import session, ns
 
@@ -35,16 +35,33 @@ def create_namespace_in_tenant(_api, namespace_name: str, description: str) -> s
     Create a namespace in the tenant.
     """
     try:
-        payload = _api.create_payload(name=namespace_name, description=description)
+        payload = {"metadata": {"name": namespace_name, "description": description}}
         _api.create(payload)
         return f"Namespace '{namespace_name}' created successfully."
     except Exception as e:
         raise RuntimeError(f"Failed to create namespace: {e}") from e
 
 
-def main_create_ns(payload: dict):
+def wait_for_namespace(_api, namespace_name: str, timeout: int = 20, interval: int = 5):
     """
-    Main function to process the payload and create a namespace.
+    Wait for the namespace to be available.
+    """
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            response = _api.get(namespace=namespace_name)
+            if response:
+                return f"Namespace '{namespace_name}' is available."
+        except Exception:
+            time.sleep(interval)
+
+    raise RuntimeError(f"Namespace '{namespace_name}' was not available within {timeout} seconds.")
+
+
+def main(payload: dict):
+    """
+    Main function to process the payload, create a namespace, and verify its availability.
     """
     try:
         validate_payload_create_ns(payload)
@@ -65,15 +82,14 @@ def main_create_ns(payload: dict):
         auth = session(tenant_url=params["tenant-url"], api_token=params["token-value"])
         _api = ns(auth)
 
-        job = create_namespace_in_tenant(
-            _api=_api,
-            namespace_name=namespace_name,
-            description=description
-        )
+        job = create_namespace_in_tenant(_api, namespace_name, description)
+
+        # Wait for the namespace to be available
+        status = wait_for_namespace(_api, namespace_name)
 
         res = {
             "statusCode": 200,
-            "body": job
+            "body": f"{job} | {status}"
         }
 
     except Exception as e:
@@ -88,11 +104,11 @@ def main_create_ns(payload: dict):
     return res
 
 
-def lambda_handler_create_ns(event, context):
+def lambda_handler(event, context):
     """
     AWS Lambda entry point for creating a namespace.
     """
-    return main_create_ns(event)
+    return main(event)
 
 
 if __name__ == "__main__":
@@ -102,4 +118,4 @@ if __name__ == "__main__":
         "namespace_name": "app-namespace",
         "description": "Namespace for application workloads"
     }
-    main_create_ns(test_payload_create_ns)
+    main(test_payload_create_ns)
