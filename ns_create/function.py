@@ -35,7 +35,7 @@ def create_namespace_in_tenant(_api, namespace_name: str, description: str = "")
     Create a namespace in the tenant.
     """
     try:
-        payload = {"metadata": {"name": namespace_name, "description": description}}
+        payload = _api.create_payload(name=namespace_name, description=description)
         _api.create(payload)
         return f"Namespace '{namespace_name}' created successfully."
     except Exception as e:
