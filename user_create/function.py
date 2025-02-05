@@ -84,7 +84,6 @@ def main(payload: dict):
         ssm_base_path = payload["ssm_base_path"]
         first_name = payload["first_name"]
         last_name = payload["last_name"]
-        idm_type = payload["idm_type"]
         email = payload["email"]
         group_names = payload.get("group_names", [])
         namespace_roles = payload.get("namespace_roles", [])
@@ -93,7 +92,8 @@ def main(payload: dict):
         params = get_parameters(
             [
                 f"{ssm_base_path}/tenant-url",
-                f"{ssm_base_path}/token-value"
+                f"{ssm_base_path}/token-value",
+                f"{ssm_base_path}/idm-type",
             ],
             region_name=region,
         )
@@ -104,7 +104,7 @@ def main(payload: dict):
         # Attempt to create the user first
         try:
             result_message = create_user_in_tenant(
-                _api, first_name, last_name, idm_type, email, group_names, namespace_roles
+                _api, first_name, last_name, params["idm_type"], email, group_names, namespace_roles
             )
         except RuntimeError as e:
             if "already exists" not in str(e):
