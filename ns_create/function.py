@@ -50,7 +50,7 @@ def wait_for_namespace(_api, namespace_name: str, timeout: int = 20, interval: i
     
     while time.time() - start_time < timeout:
         try:
-            response = _api.get(namespace=namespace_name)
+            response = _api.get(name=namespace_name)
             if response:
                 return f"Namespace '{namespace_name}' is available."
         except Exception:
