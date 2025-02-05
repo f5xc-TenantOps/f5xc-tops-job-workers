@@ -89,7 +89,7 @@ def main():
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
             if error_code == "404":
-                print(f"Certificate not found in S3. Proceeding to issue a new one.")
+                print(f"Certificate for {domain} not found in S3. Proceeding to issue a new one.")
             elif error_code == "403":
                 raise RuntimeError(f"Access denied to S3 object: {cert_key}. Check permissions.") from e
             else:
