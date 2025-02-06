@@ -209,7 +209,7 @@ def lambda_handler(event, context):
 if __name__ == "__main__":
     # Simulated direct payload for local testing
     test_payload = {
-        "ssm_base_path": "/tenantOps/app-lab",
+        "ssm_base_path": "/tenantOps/sec-lab",
         "petname": "snarky-petname"
     }
     main(test_payload)
