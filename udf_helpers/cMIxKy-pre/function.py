@@ -148,9 +148,9 @@ def main(payload: dict):
     """
     try:
         validate_payload(payload)
-        base_domain = os.getenv("DOMAIN")
+        base_domain = os.getenv("BASE_DOMAIN")
         if not base_domain:
-            raise RuntimeError("Missing required environment variable: DOMAIN")
+            raise RuntimeError("Missing required environment variable: BASE_DOMAIN")
         
         ssm_base_path = payload["ssm_base_path"]
         petname = payload["petname"]
