@@ -163,7 +163,7 @@ def main(payload: dict):
 
         # Set domain and certificate based on ENV
         base_domain = f"sec-lab{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
-        cert_name = f"app-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
+        cert_name = f"sec-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
 
         ssm_base_path = payload["ssm_base_path"]
         petname = payload["petname"]
