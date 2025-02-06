@@ -6,7 +6,7 @@ import boto3
 from f5xc_tops_py_client import session, origin_pool, http_loadbalancer
 
 
-def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
+def get_parameters(parameters: list, region_name: str = "us-east-1") -> dict:
     """
     Fetch parameters from AWS Parameter Store.
     """
@@ -23,7 +23,7 @@ def validate_payload(payload: dict):
     """
     Validate the payload for required fields.
     """
-    required_fields = ["ssm_base_path", "animal_adjective"]
+    required_fields = ["ssm_base_path", "petname"]
     missing_fields = [field for field in required_fields if field not in payload]
 
     if missing_fields:
@@ -149,13 +149,13 @@ def main(payload: dict):
         validate_payload(payload)
 
         ssm_base_path = payload["ssm_base_path"]
-        animal_adjective = payload["animal_adjective"]
-        namespace = animal_adjective
-        origin_name = f"{animal_adjective}-origin"
-        lb_name = f"{animal_adjective}-lb"
-        domain = f"{animal_adjective}.lab-sec.f5demos.com"
+        petname = payload["petname"]
+        namespace = petname
+        origin_name = f"{petname}-origin"
+        lb_name = f"{petname}-lb"
+        domain = f"{petname}.lab-sec.f5demos.com"
 
-        region = boto3.session.Session().region_name or "us-west-2"
+        region = boto3.session.Session().region_name
         params = get_parameters(
             [
                 f"{ssm_base_path}/tenant-url",
@@ -205,6 +205,6 @@ if __name__ == "__main__":
     # Simulated direct payload for local testing
     test_payload = {
         "ssm_base_path": "/tenantOps/app-lab",
-        "animal_adjective": "blue-elephant"
+        "petname": "snarky-petname"
     }
     main(test_payload)
