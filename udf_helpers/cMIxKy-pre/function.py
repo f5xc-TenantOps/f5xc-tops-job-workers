@@ -69,7 +69,7 @@ def create_origin_pool(_api, namespace: str, origin_name: str) -> str:
             }
         }
 
-        _api.create(payload)
+        _api.create(payload=payload, namespace=namespace)
         return f"Origin Pool '{origin_name}' created successfully."
 
     except Exception as e:
@@ -135,7 +135,7 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, o
             }
         }
 
-        _api.create(payload)
+        _api.create(payload=payload, namespace=namespace)
         return f"HTTP Load Balancer '{lb_name}' created successfully."
 
     except Exception as e:
