@@ -84,7 +84,7 @@ def wait_for_origin_pool(_api, namespace: str, origin_name: str, retries: int = 
         try:
             response = _api.get(namespace=namespace, name=origin_name)
             if response:
-                return  # Origin Pool exists, continue
+                return 
         except Exception as e:
             error_msg = str(e)
             if "API ResponseCode 404" in error_msg:
@@ -156,17 +156,21 @@ def main(payload: dict):
     """
     try:
         validate_payload(payload)
+
         env = os.getenv("ENV")
         if not env:
             raise RuntimeError("Missing required environment variable: ENV")
-        
+
+        # Set domain and certificate based on ENV
+        base_domain = f"sec-lab{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
+        cert_name = f"app-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
+
         ssm_base_path = payload["ssm_base_path"]
         petname = payload["petname"]
         namespace = petname
         origin_name = f"{petname}-origin"
         lb_name = f"{petname}-lb"
         domain = f"{petname}.{base_domain}"
-        cert_name = "app-lab-wildcard-dev"
 
         region = boto3.session.Session().region_name
         params = get_parameters(
@@ -188,7 +192,7 @@ def main(payload: dict):
         wait_for_origin_pool(origin_api, namespace, origin_name)
 
         # Create HTTP Load Balancer
-        lb_result_message = create_http_load_balancer(lb_api, namespace, lb_name, domain, origin_name)
+        lb_result_message = create_http_load_balancer(lb_api, namespace, lb_name, domain, cert_name, origin_name)
 
         res = {
             "statusCode": 200,
