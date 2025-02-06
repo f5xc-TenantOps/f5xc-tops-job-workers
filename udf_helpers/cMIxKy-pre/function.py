@@ -96,7 +96,7 @@ def wait_for_origin_pool(_api, namespace: str, origin_name: str, retries: int = 
     raise RuntimeError(f"Timeout waiting for Origin Pool '{origin_name}' to be available.")
 
 
-def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, origin_name: str) -> str:
+def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, cert_name: str, origin_name: str) -> str:
     """
     Create an HTTP Load Balancer in the tenant.
     """
@@ -120,8 +120,8 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, o
                         "certificates": [
                             {
                                 "tenant": "f5-xc-lab-sec-lpuwkdtb",
-                                "namespace": namespace,
-                                "name": "wildcard-lab-sec",
+                                "namespace": "shared",
+                                "name": cert_name,
                                 "kind": "certificate"
                             }
                         ],
@@ -156,9 +156,9 @@ def main(payload: dict):
     """
     try:
         validate_payload(payload)
-        base_domain = os.getenv("BASE_DOMAIN")
-        if not base_domain:
-            raise RuntimeError("Missing required environment variable: BASE_DOMAIN")
+        env = os.getenv("ENV")
+        if not env:
+            raise RuntimeError("Missing required environment variable: ENV")
         
         ssm_base_path = payload["ssm_base_path"]
         petname = payload["petname"]
@@ -166,6 +166,7 @@ def main(payload: dict):
         origin_name = f"{petname}-origin"
         lb_name = f"{petname}-lb"
         domain = f"{petname}.{base_domain}"
+        cert_name = "app-lab-wildcard-dev"
 
         region = boto3.session.Session().region_name
         params = get_parameters(
