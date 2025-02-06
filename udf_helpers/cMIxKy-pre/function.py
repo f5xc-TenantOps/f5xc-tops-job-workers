@@ -1,6 +1,7 @@
 """
 Create an Origin Pool and HTTP Load Balancer in an F5 XC tenant.
 """
+import os
 import time
 import boto3
 from f5xc_tops_py_client import session, origin_pool, http_loadbalancer
@@ -147,13 +148,17 @@ def main(payload: dict):
     """
     try:
         validate_payload(payload)
-
+        base_domain = os.getenv("DOMAIN")
+        if not base_domain:
+            raise RuntimeError("Missing required environment variable: DOMAIN")
+        
         ssm_base_path = payload["ssm_base_path"]
         petname = payload["petname"]
         namespace = petname
         origin_name = f"{petname}-origin"
         lb_name = f"{petname}-lb"
-        domain = f"{petname}.lab-sec.f5demos.com"
+        domain = f"{petname}.{base_domain}"
+
 
         region = boto3.session.Session().region_name
         params = get_parameters(
