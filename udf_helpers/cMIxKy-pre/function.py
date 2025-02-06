@@ -142,7 +142,7 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, o
                 ]
             }
         }
-
+        print(payload)
         _api.create(payload=payload, namespace=namespace)
         return f"HTTP Load Balancer '{lb_name}' created successfully."
 
