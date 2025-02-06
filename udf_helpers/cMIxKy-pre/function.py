@@ -78,13 +78,21 @@ def create_origin_pool(_api, namespace: str, origin_name: str) -> str:
 
 def wait_for_origin_pool(_api, namespace: str, origin_name: str, retries: int = 20, delay: int = 5) -> None:
     """
-    Wait for the Origin Pool to be available.
+    Wait for the Origin Pool to be available using _api.get(namespace, name).
     """
-    for _ in range(retries):
-        origin_pools = _api.list(namespace=namespace)
-        if any(pool.get("metadata", {}).get("name") == origin_name for pool in origin_pools):
-            return  # Origin Pool exists, continue
-        time.sleep(delay)
+    for attempt in range(retries):
+        try:
+            response = _api.get(namespace=namespace, name=origin_name)
+            if response:
+                return  # Origin Pool exists, continue
+        except Exception as e:
+            error_msg = str(e)
+            if "API ResponseCode 404" in error_msg:
+                print(f"Attempt {attempt + 1}/{retries}: Origin Pool '{origin_name}' not found. Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                raise RuntimeError(f"Unexpected error checking Origin Pool: {e}") from e
+
     raise RuntimeError(f"Timeout waiting for Origin Pool '{origin_name}' to be available.")
 
 
@@ -158,7 +166,6 @@ def main(payload: dict):
         origin_name = f"{petname}-origin"
         lb_name = f"{petname}-lb"
         domain = f"{petname}.{base_domain}"
-
 
         region = boto3.session.Session().region_name
         params = get_parameters(
