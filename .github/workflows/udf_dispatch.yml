@@ -1,4 +1,4 @@
-name: Package udf_timer
+name: Package udf_dispatch
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'udf_timer/**'
-      - '.github/workflows/udf_timer.yml'
+      - 'udf_dispatch/**'
+      - '.github/workflows/udf_dispatch.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: udf_timer
-  LAMBDA_DIR: udf_timer
+  LAMBDA_NAME: udf_dispatch
+  LAMBDA_DIR: udf_dispatch
 
 jobs:
   build-and-upload:
