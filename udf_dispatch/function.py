@@ -8,7 +8,7 @@ import boto3
 dynamodb = boto3.client("dynamodb")
 
 # Environment Variables
-DEPLOYMENT_TABLE = os.getenv("DEPLOYMENT_STATE_TABLE ")
+DEPLOYMENT_TABLE = os.getenv("DEPLOYMENT_STATE_TABLE")
 TTL_EXTENSION_SECONDS = 300
 
 if not DEPLOYMENT_TABLE:
