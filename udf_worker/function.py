@@ -32,13 +32,10 @@ def invoke_lambda(function_name: str, payload: dict) -> dict:
 def update_deployment_state(depID: str, step: str, status: str, details: str = None):
     """Update the state of the deployment in DynamoDB."""
     try:
-        expiration_timestamp = int(time.time()) + 300  # Extend TTL by 5 minutes
-
-        update_expression = "SET #s = :status, ttl = :ttl, updated_at = :timestamp"
+        update_expression = "SET #s = :status, updated_at = :timestamp"
         expression_values = {
             ":status": {"S": status},
-            ":timestamp": {"N": str(int(time.time()))},
-            ":ttl": {"N": str(expiration_timestamp)}
+            ":timestamp": {"N": str(int(time.time()))}
         }
 
         if details:
@@ -47,7 +44,7 @@ def update_deployment_state(depID: str, step: str, status: str, details: str = N
 
         dynamodb.update_item(
             TableName=DEPLOYMENT_STATE_TABLE,
-            Key={"depID": {"S": depID}},  # ✅ Updated key name
+            Key={"depID": {"S": depID}},
             UpdateExpression=update_expression,
             ExpressionAttributeNames={"#s": step},
             ExpressionAttributeValues=expression_values
