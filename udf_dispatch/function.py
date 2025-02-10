@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import boto3
 
 # AWS Clients
@@ -9,40 +9,40 @@ dynamodb = boto3.client("dynamodb")
 
 # Environment Variables
 DEPLOYMENT_TABLE = os.getenv("DEPLOYMENT_TABLE_NAME")
-TTL_EXTENSION_SECONDS = 300  # Always set TTL to 5 minutes from now
+TTL_EXTENSION_SECONDS = 300
 
 
 def validate_message(message: dict):
     """
     Validate that required fields exist in the SQS message.
     """
-    required_fields = ["deployment_id", "lab_id", "email", "petname"]
+    required_fields = ["depID", "labID", "email", "petname"]
     missing_fields = [field for field in required_fields if field not in message]
 
     if missing_fields:
         raise ValueError(f"Missing required fields in message: {', '.join(missing_fields)}")
 
 
-def check_existing_deployment(deployment_id: str):
+def check_existing_deployment(depID: str):
     """
-    Check if a deployment_id already exists in DynamoDB.
+    Check if a depID (deployment_id) already exists in DynamoDB.
     """
     try:
         response = dynamodb.get_item(
             TableName=DEPLOYMENT_TABLE,
-            Key={"deployment_id": {"S": deployment_id}}
+            Key={"depID": {"S": depID}}
         )
         return response.get("Item")
     except Exception as e:
         raise RuntimeError(f"Error checking existing deployment: {e}") from e
 
 
-def extend_ttl(deployment_id: str):
+def extend_ttl(depID: str):
     """
-    Extend the TTL of an existing deployment_id to always be 5 minutes from the current time.
+    Extend the TTL of an existing deployment to always be 5 minutes from the current time.
     """
     try:
-        new_expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS  # Always set TTL to 5 minutes from now
+        new_expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS
         human_readable_expiration = datetime.utcfromtimestamp(new_expiration_time).strftime('%Y-%m-%d %H:%M:%S UTC')
 
         update_expression = "SET ttl = :ttl, expiration = :expiration, updated_at = :timestamp"
@@ -54,11 +54,11 @@ def extend_ttl(deployment_id: str):
 
         dynamodb.update_item(
             TableName=DEPLOYMENT_TABLE,
-            Key={"deployment_id": {"S": deployment_id}},
+            Key={"depID": {"S": depID}},
             UpdateExpression=update_expression,
             ExpressionAttributeValues=expression_values
         )
-        return f"TTL updated to 5 minutes from now for deployment_id {deployment_id}"
+        return f"TTL updated to 5 minutes from now for deployment {depID}"
     except Exception as e:
         raise RuntimeError(f"Failed to update TTL: {e}") from e
 
@@ -67,11 +67,11 @@ def insert_into_dynamodb(message: dict):
     """
     Insert the processed message into DynamoDB as a new deployment with a TTL of 5 minutes from now.
     """
-    expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS  # Always set to 5 minutes from now
+    expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS
 
     item = {
-        "deployment_id": {"S": message["deployment_id"]},
-        "lab_id": {"S": message["lab_id"]},
+        "depID": {"S": message["depID"]},
+        "labID": {"S": message["labID"]},
         "email": {"S": message["email"]},
         "petname": {"S": message["petname"]},
         "status": {"S": "PENDING"},
@@ -84,7 +84,7 @@ def insert_into_dynamodb(message: dict):
             TableName=DEPLOYMENT_TABLE,
             Item=item
         )
-        return f"Inserted new deployment_id {message['deployment_id']} into {DEPLOYMENT_TABLE}."
+        return f"Inserted new deployment {message['depID']} into {DEPLOYMENT_TABLE}."
     except Exception as e:
         raise RuntimeError(f"Failed to insert into DynamoDB: {e}") from e
 
@@ -95,19 +95,16 @@ def main(event: dict):
     """
     try:
         for record in event["Records"]:
-            message_body = json.loads(record["body"])  # Read SQS message
+            message_body = json.loads(record["body"])
             validate_message(message_body)
 
-            deployment_id = message_body["deployment_id"]
+            depID = message_body["depID"]
 
-            # Check if the deployment already exists
-            existing_item = check_existing_deployment(deployment_id)
+            existing_item = check_existing_deployment(depID)
 
             if existing_item:
-                # Always set TTL to 5 minutes from now
-                result = extend_ttl(deployment_id)
+                result = extend_ttl(depID)
             else:
-                # Insert new record with a TTL of 5 minutes
                 result = insert_into_dynamodb(message_body)
 
             print(result)
@@ -132,10 +129,10 @@ if __name__ == "__main__":
         "Records": [
             {
                 "body": json.dumps({
-                    "deployment_id": "deploy-001",
-                    "lab_id": "lab-123",
+                    "depID": "deploy-001",
+                    "labID": "lab-123",
                     "email": "test.user@example.com",
-                    "namespace_name": "test-namespace"
+                    "petname": "fluffy-panda"
                 })
             }
         ]
