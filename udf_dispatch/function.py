@@ -8,9 +8,11 @@ import boto3
 dynamodb = boto3.client("dynamodb")
 
 # Environment Variables
-DEPLOYMENT_TABLE = os.getenv("DEPLOYMENT_TABLE_NAME")
+DEPLOYMENT_TABLE = os.getenv("DEPLOYMENT_STATE_TABLE ")
 TTL_EXTENSION_SECONDS = 300
 
+if not DEPLOYMENT_TABLE:
+    raise ValueError("DEPLOYMENT_STATE_TABLE environment variable is not set.")
 
 def validate_message(message: dict):
     """
