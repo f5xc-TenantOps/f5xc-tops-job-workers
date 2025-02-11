@@ -33,8 +33,8 @@ def get_lab_info(labID: str) -> dict:
     """Fetch lab information from DynamoDB using the lab ID."""
     try:
         response = dynamodb.get_item(
-            TableName=LAB_CONFIGURATION_TABLE,  
-            Key={"labID": {"S": labID}}
+            TableName=LAB_CONFIGURATION_TABLE,
+            Key={"lab_id": {"S": labID}}
         )
 
         if "Item" not in response:
@@ -52,7 +52,8 @@ def get_lab_info(labID: str) -> dict:
             "group_names": [g["S"] for g in item["group_names"]["L"]],
             "namespace_roles": [{"namespace": role["M"]["namespace"]["S"], "role": role["M"]["role"]["S"]} for role in item["namespace_roles"]["L"]],
             "user_ns": item["user_ns"]["BOOL"],
-            "pre_lambda": item.get("pre_lambda", {}).get("S", None)
+            "pre_lambda": item.get("pre_lambda", {}).get("S", None),
+            "post_lambda": item.get("post_lambda", {}).get("S", None)
         }
 
         return lab_info
