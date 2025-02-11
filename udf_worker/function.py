@@ -82,6 +82,7 @@ def process_insert(record: dict):
     """Handle a new record INSERT event from the DynamoDB stream."""
     try:
         new_image = record["dynamodb"]["NewImage"]
+        print(f"Processing new record: {new_image}")
 
         dep_id = new_image["dep_id"]["S"]
         lab_id = new_image["lab_id"]["S"]
