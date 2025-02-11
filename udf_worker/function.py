@@ -7,7 +7,6 @@ import boto3
 lambda_client = boto3.client("lambda")
 dynamodb = boto3.client("dynamodb")
 
-# ✅ Updated to match Terraform-provided environment variables
 DEPLOYMENT_STATE_TABLE = os.getenv("DEPLOYMENT_STATE_TABLE")
 LAB_CONFIGURATION_TABLE = os.getenv("LAB_CONFIGURATION_TABLE")
 USER_CREATE_LAMBDA = os.getenv("USER_CREATE_LAMBDA_FUNCTION")
@@ -89,9 +88,6 @@ def process_insert(record: dict):
         email = new_image["email"]["S"]
         petname = new_image["petname"]["S"]
 
-        created_namespace = False
-        created_user = False
-
         update_deployment_state(dep_id, {"deployment_status": "IN_PROGRESS"})
 
         if not NS_CREATE_LAMBDA or not USER_CREATE_LAMBDA or not LAB_CONFIGURATION_TABLE:
@@ -119,7 +115,6 @@ def process_insert(record: dict):
             if namespace_response.get("statusCode") == 200:
                 update_deployment_state(dep_id, {"create_namespace": "SUCCESS"})
                 namespace_roles.append({"namespace": petname, "role": "ves-io-admin"})
-                created_namespace = True
             else:
                 update_deployment_state(dep_id, {"create_namespace": "FAILED"})
 
@@ -137,7 +132,6 @@ def process_insert(record: dict):
         user_response = invoke_lambda(USER_CREATE_LAMBDA, user_payload)
         if user_response.get("statusCode") == 200:
             update_deployment_state(dep_id, {"create_user": "SUCCESS"})
-            created_user = True
         else:
             update_deployment_state(dep_id, {"create_user": "FAILED"})
 
@@ -156,20 +150,76 @@ def process_insert(record: dict):
             else:
                 update_deployment_state(dep_id, {"pre_lambda": "FAILED"})
 
-        # ✅ Store created flags in DynamoDB
-        update_deployment_state(dep_id, {
-            "created_namespace": created_namespace,
-            "created_user": created_user
-        })
-
     except Exception as e:
         update_deployment_state(dep_id, {"deployment_status": "FAILED"})
         print(f"Error processing INSERT record: {e}")
         raise
 
+def process_remove(record: dict):
+    """Handle a record REMOVE event from the DynamoDB stream."""
+    try:
+        old_image = record["dynamodb"]["OldImage"]
+
+        dep_id = old_image["dep_id"]["S"]
+        lab_id = old_image["lab_id"]["S"]
+        petname = old_image["petname"]["S"]
+        email = old_image["email"]["S"]
+        create_namespace = old_image.get("create_namespace", {}).get("S")
+        create_user = old_image.get("create_user", {}).get("S")
+
+        # Fetch lab settings
+        lab_info = get_lab_info(lab_id)
+        ssm_base_path = lab_info["ssm_base_path"]
+        post_lambda = lab_info.get("post_lambda")
+
+        # Step 1: Remove Namespace if it was successfully created
+        if create_namespace == "SUCCESS":
+            if not NS_REMOVE_LAMBDA:
+                raise RuntimeError("NS_REMOVE_LAMBDA environment variable is missing.")
+
+            namespace_payload = {
+                "ssm_base_path": ssm_base_path,
+                "namespace_name": petname
+            }
+
+            ns_remove_response = invoke_lambda(NS_REMOVE_LAMBDA, namespace_payload)
+            if ns_remove_response.get("statusCode") != 200:
+                print(f"Warning: Namespace removal failed for {petname}")
+
+        # Step 2: Remove User if it was successfully created
+        if create_user == "SUCCESS":
+            if not USER_REMOVE_LAMBDA:
+                raise RuntimeError("USER_REMOVE_LAMBDA environment variable is missing.")
+
+            user_payload = {
+                "ssm_base_path": ssm_base_path,
+                "email": email
+            }
+
+            user_remove_response = invoke_lambda(USER_REMOVE_LAMBDA, user_payload)
+            if user_remove_response.get("statusCode") != 200:
+                print(f"Warning: User removal failed for {email}")
+
+        # Step 3: Execute Post-Lambda (if defined)
+        if post_lambda:
+            post_lambda_payload = {
+                "ssm_base_path": ssm_base_path,
+                "petname": petname,
+                "email": email
+            }
+
+            post_lambda_response = invoke_lambda(post_lambda, post_lambda_payload)
+            if post_lambda_response.get("statusCode") != 200:
+                print(f"Warning: Post-Lambda execution failed for {dep_id}")
+
+    except Exception as e:
+        print(f"Error processing REMOVE record: {e}")
+        raise
 
 def lambda_handler(event, context):
     """AWS Lambda entry point for handling DynamoDB stream events."""
     for record in event["Records"]:
         if record["eventName"] == "INSERT":
             process_insert(record)
+        elif record["eventName"] == "REMOVE":
+            process_remove(record)

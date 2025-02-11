@@ -76,7 +76,7 @@ def insert_into_dynamodb(message: dict):
         "lab_id": {"S": message["lab_id"]},
         "email": {"S": message["email"]},
         "petname": {"S": message["petname"]},
-        "status": {"S": "PENDING"},
+        "deployment_status": {"S": "STARTING"},
         "created_at": {"S": datetime.utcnow().isoformat()},
         "ttl": {"N": str(expiration_time)}
     }
