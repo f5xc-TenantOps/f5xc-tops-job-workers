@@ -7,13 +7,13 @@ import boto3
 lambda_client = boto3.client("lambda")
 dynamodb = boto3.client("dynamodb")
 
-# Retrieve Lambda function names from environment variables
-CREATE_NAMESPACE_LAMBDA = os.getenv("CREATE_NAMESPACE_LAMBDA_ARN")
-CREATE_USER_LAMBDA = os.getenv("CREATE_USER_LAMBDA_ARN")
-REMOVE_NAMESPACE_LAMBDA = os.getenv("REMOVE_NAMESPACE_LAMBDA_ARN")
-REMOVE_USER_LAMBDA = os.getenv("REMOVE_USER_LAMBDA_ARN")
-LAB_CONFIGURATION_TABLE = os.getenv("LAB_CONFIGURATION_TABLE")
+# ✅ Updated to match Terraform-provided environment variables
 DEPLOYMENT_STATE_TABLE = os.getenv("DEPLOYMENT_STATE_TABLE")
+LAB_CONFIGURATION_TABLE = os.getenv("LAB_CONFIGURATION_TABLE")
+USER_CREATE_LAMBDA = os.getenv("USER_CREATE_LAMBDA_FUNCTION")
+USER_REMOVE_LAMBDA = os.getenv("USER_REMOVE_LAMBDA_FUNCTION")
+NS_CREATE_LAMBDA = os.getenv("NS_CREATE_LAMBDA_FUNCTION")
+NS_REMOVE_LAMBDA = os.getenv("NS_REMOVE_LAMBDA_FUNCTION")
 
 
 def invoke_lambda(function_name: str, payload: dict) -> dict:
@@ -24,29 +24,54 @@ def invoke_lambda(function_name: str, payload: dict) -> dict:
             InvocationType="RequestResponse",
             Payload=json.dumps(payload)
         )
-        return json.loads(response['Payload'].read())
+        return json.loads(response["Payload"].read())
     except Exception as e:
         raise RuntimeError(f"Failed to invoke Lambda '{function_name}': {e}") from e
 
 
-def update_deployment_state(depID: str, step: str, status: str, details: str = None):
-    """Update the state of the deployment in DynamoDB."""
+def get_lab_info(labID: str) -> dict:
+    """Fetch lab information from DynamoDB using the lab ID."""
     try:
-        update_expression = "SET #s = :status, updated_at = :timestamp"
-        expression_values = {
-            ":status": {"S": status},
-            ":timestamp": {"N": str(int(time.time()))}
+        response = dynamodb.get_item(
+            TableName=LAB_CONFIGURATION_TABLE,  
+            Key={"labID": {"S": labID}}
+        )
+
+        if "Item" not in response:
+            raise RuntimeError(f"Lab ID '{labID}' not found in DynamoDB.")
+
+        item = response["Item"]
+
+        required_fields = ["ssm_base_path", "group_names", "namespace_roles", "user_ns"]
+        missing_fields = [field for field in required_fields if field not in item]
+        if missing_fields:
+            raise RuntimeError(f"Missing required fields in lab info: {', '.join(missing_fields)}")
+
+        lab_info = {
+            "ssm_base_path": item["ssm_base_path"]["S"],
+            "group_names": [g["S"] for g in item["group_names"]["L"]],
+            "namespace_roles": [{"namespace": role["M"]["namespace"]["S"], "role": role["M"]["role"]["S"]} for role in item["namespace_roles"]["L"]],
+            "user_ns": item["user_ns"]["BOOL"],
+            "pre_lambda": item.get("pre_lambda", {}).get("S", None)
         }
 
-        if details:
-            update_expression += ", details = :details"
-            expression_values[":details"] = {"S": details}
+        return lab_info
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch lab info from DynamoDB: {e}") from e
+
+
+def update_deployment_state(depID: str, updates: dict):
+    """Update multiple fields in the deployment state in DynamoDB."""
+    try:
+        update_expression = "SET " + ", ".join([f"#{k} = :{k}" for k in updates.keys()])
+        expression_values = {f":{k}": {"S" if isinstance(v, str) else "BOOL": v} for k, v in updates.items()}
+        expression_names = {f"#{k}": k for k in updates.keys()}
 
         dynamodb.update_item(
             TableName=DEPLOYMENT_STATE_TABLE,
             Key={"depID": {"S": depID}},
             UpdateExpression=update_expression,
-            ExpressionAttributeNames={"#s": step},
+            ExpressionAttributeNames=expression_names,
             ExpressionAttributeValues=expression_values
         )
     except Exception as e:
@@ -58,7 +83,7 @@ def process_insert(record: dict):
     try:
         new_image = record["dynamodb"]["NewImage"]
 
-        depID = new_image["depID"]["S"]  # ✅ Updated key name
+        depID = new_image["depID"]["S"]
         labID = new_image["labID"]["S"]
         email = new_image["email"]["S"]
         petname = new_image["petname"]["S"]
@@ -66,10 +91,9 @@ def process_insert(record: dict):
         created_namespace = False
         created_user = False
 
-        update_deployment_state(depID, "deployment_status", "IN_PROGRESS", "Starting deployment")
+        update_deployment_state(depID, {"deployment_status": "IN_PROGRESS"})
 
-        # Check for required environment variables
-        if not CREATE_NAMESPACE_LAMBDA or not CREATE_USER_LAMBDA or not LAB_CONFIGURATION_TABLE:
+        if not NS_CREATE_LAMBDA or not USER_CREATE_LAMBDA or not LAB_CONFIGURATION_TABLE:
             raise RuntimeError("Missing required environment variables.")
 
         # Fetch lab settings
@@ -89,15 +113,14 @@ def process_insert(record: dict):
                 "description": f"Namespace for {depID}"
             }
 
-            update_deployment_state(depID, "create_namespace", "IN_PROGRESS", "Creating namespace")
-            namespace_response = invoke_lambda(CREATE_NAMESPACE_LAMBDA, namespace_payload)
+            update_deployment_state(depID, {"create_namespace": "IN_PROGRESS"})
+            namespace_response = invoke_lambda(NS_CREATE_LAMBDA, namespace_payload)
             if namespace_response.get("statusCode") == 200:
-                update_deployment_state(depID, "create_namespace", "SUCCESS", namespace_response.get("body"))
+                update_deployment_state(depID, {"create_namespace": "SUCCESS"})
                 namespace_roles.append({"namespace": petname, "role": "ves-io-admin"})
                 created_namespace = True
             else:
-                update_deployment_state(depID, "create_namespace", "FAILED", namespace_response.get("body"))
-                print(f"Namespace already exists or failed: {namespace_response.get('body')}")
+                update_deployment_state(depID, {"create_namespace": "FAILED"})
 
         # Step 2: Create User
         user_payload = {
@@ -109,52 +132,38 @@ def process_insert(record: dict):
             "namespace_roles": namespace_roles
         }
 
-        update_deployment_state(depID, "create_user", "IN_PROGRESS", "Creating user")
-        user_response = invoke_lambda(CREATE_USER_LAMBDA, user_payload)
+        update_deployment_state(depID, {"create_user": "IN_PROGRESS"})
+        user_response = invoke_lambda(USER_CREATE_LAMBDA, user_payload)
         if user_response.get("statusCode") == 200:
-            update_deployment_state(depID, "create_user", "SUCCESS", user_response.get("body"))
+            update_deployment_state(depID, {"create_user": "SUCCESS"})
             created_user = True
         else:
-            update_deployment_state(depID, "create_user", "FAILED", user_response.get("body"))
-            print(f"User already exists or failed: {user_response.get('body')}")
+            update_deployment_state(depID, {"create_user": "FAILED"})
 
-        # Store flags in deployment state
-        update_deployment_state(depID, "created_namespace", str(created_namespace))
-        update_deployment_state(depID, "created_user", str(created_user))
+        # ✅ Step 3: Execute Pre-Lambda (if defined)
+        if pre_lambda:
+            update_deployment_state(depID, {"pre_lambda": "IN_PROGRESS"})
+            pre_lambda_payload = {
+                "ssm_base_path": ssm_base_path,
+                "petname": petname,
+                "email": email
+            }
+            pre_lambda_response = invoke_lambda(pre_lambda, pre_lambda_payload)
+
+            if pre_lambda_response.get("statusCode") == 200:
+                update_deployment_state(depID, {"pre_lambda": "SUCCESS"})
+            else:
+                update_deployment_state(depID, {"pre_lambda": "FAILED"})
+
+        # ✅ Store created flags in DynamoDB
+        update_deployment_state(depID, {
+            "created_namespace": created_namespace,
+            "created_user": created_user
+        })
 
     except Exception as e:
-        update_deployment_state(depID, "deployment_status", "FAILED", str(e))
+        update_deployment_state(depID, {"deployment_status": "FAILED"})
         print(f"Error processing INSERT record: {e}")
-        raise
-
-
-def process_remove(record: dict):
-    """Handle a record REMOVAL event from the DynamoDB stream (TTL expiration)."""
-    try:
-        depID = record["dynamodb"]["Keys"]["depID"]["S"]  # ✅ Updated key name
-        item = dynamodb.get_item(
-            TableName=DEPLOYMENT_STATE_TABLE,
-            Key={"depID": {"S": depID}}
-        ).get("Item", {})
-
-        created_namespace = item.get("created_namespace", {}).get("S") == "True"
-        created_user = item.get("created_user", {}).get("S") == "True"
-
-        if created_user:
-            update_deployment_state(depID, "cleanup_status", "IN_PROGRESS", "Removing user")
-            user_payload = {"ssm_base_path": item["ssm_base_path"]["S"], "email": item["email"]["S"]}
-            invoke_lambda(REMOVE_USER_LAMBDA, user_payload)
-
-        if created_namespace:
-            update_deployment_state(depID, "cleanup_status", "IN_PROGRESS", "Removing namespace")
-            namespace_payload = {"ssm_base_path": item["ssm_base_path"]["S"], "namespace_name": item["petname"]["S"]}
-            invoke_lambda(REMOVE_NAMESPACE_LAMBDA, namespace_payload)
-
-        update_deployment_state(depID, "cleanup_status", "COMPLETED", "Cleanup completed successfully")
-
-    except Exception as e:
-        update_deployment_state(depID, "cleanup_status", "FAILED", str(e))
-        print(f"Error processing REMOVE record: {e}")
         raise
 
 
@@ -163,5 +172,3 @@ def lambda_handler(event, context):
     for record in event["Records"]:
         if record["eventName"] == "INSERT":
             process_insert(record)
-        elif record["eventName"] == "REMOVE":
-            process_remove(record)
