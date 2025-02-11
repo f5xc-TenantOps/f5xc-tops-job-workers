@@ -115,7 +115,7 @@ def process_insert(record: dict):
             namespace_response = invoke_lambda(NS_CREATE_LAMBDA, namespace_payload)
             if namespace_response.get("statusCode") == 200:
                 update_deployment_state(dep_id, {"create_namespace": "SUCCESS"})
-                namespace_roles.append({"namespace": petname, "role": "ves-io-admin"})
+                namespace_roles.append({"namespace": petname, "role": "ves-io-admin-role"})
             else:
                 update_deployment_state(dep_id, {"create_namespace": "FAILED"})
 
