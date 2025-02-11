@@ -47,17 +47,22 @@ def extend_ttl(dep_id: str):
         new_expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS
         human_readable_expiration = datetime.utcfromtimestamp(new_expiration_time).strftime('%Y-%m-%d %H:%M:%S UTC')
 
-        update_expression = "SET ttl = :ttl, expiration = :expiration, updated_at = :timestamp"
+        update_expression = "SET #ttl = :ttl, expiration = :expiration, updated_at = :timestamp"
         expression_values = {
             ":ttl": {"N": str(new_expiration_time)},
             ":expiration": {"S": human_readable_expiration},
             ":timestamp": {"N": str(int(time.time()))}
         }
 
+        expression_names = {
+            "#ttl": "ttl"
+        }
+
         dynamodb.update_item(
             TableName=DEPLOYMENT_TABLE,
             Key={"dep_id": {"S": dep_id}},
             UpdateExpression=update_expression,
+            ExpressionAttributeNames=expression_names,
             ExpressionAttributeValues=expression_values
         )
         return f"TTL updated to 5 minutes from now for deployment {dep_id}"
