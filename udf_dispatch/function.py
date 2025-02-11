@@ -18,28 +18,28 @@ def validate_message(message: dict):
     """
     Validate that required fields exist in the SQS message.
     """
-    required_fields = ["depID", "labID", "email", "petname"]
+    required_fields = ["dep_id", "lab_id", "email", "petname"]
     missing_fields = [field for field in required_fields if field not in message]
 
     if missing_fields:
         raise ValueError(f"Missing required fields in message: {', '.join(missing_fields)}")
 
 
-def check_existing_deployment(depID: str):
+def check_existing_deployment(dep_id: str):
     """
-    Check if a depID (deployment_id) already exists in DynamoDB.
+    Check if a dep_id (deployment_id) already exists in DynamoDB.
     """
     try:
         response = dynamodb.get_item(
             TableName=DEPLOYMENT_TABLE,
-            Key={"depID": {"S": depID}}
+            Key={"dep_id": {"S": dep_id}}
         )
         return response.get("Item")
     except Exception as e:
         raise RuntimeError(f"Error checking existing deployment: {e}") from e
 
 
-def extend_ttl(depID: str):
+def extend_ttl(dep_id: str):
     """
     Extend the TTL of an existing deployment to always be 5 minutes from the current time.
     """
@@ -56,11 +56,11 @@ def extend_ttl(depID: str):
 
         dynamodb.update_item(
             TableName=DEPLOYMENT_TABLE,
-            Key={"depID": {"S": depID}},
+            Key={"dep_id": {"S": dep_id}},
             UpdateExpression=update_expression,
             ExpressionAttributeValues=expression_values
         )
-        return f"TTL updated to 5 minutes from now for deployment {depID}"
+        return f"TTL updated to 5 minutes from now for deployment {dep_id}"
     except Exception as e:
         raise RuntimeError(f"Failed to update TTL: {e}") from e
 
@@ -72,8 +72,8 @@ def insert_into_dynamodb(message: dict):
     expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS
 
     item = {
-        "depID": {"S": message["depID"]},
-        "labID": {"S": message["labID"]},
+        "dep_id": {"S": message["dep_id"]},
+        "lab_id": {"S": message["lab_id"]},
         "email": {"S": message["email"]},
         "petname": {"S": message["petname"]},
         "status": {"S": "PENDING"},
@@ -86,7 +86,7 @@ def insert_into_dynamodb(message: dict):
             TableName=DEPLOYMENT_TABLE,
             Item=item
         )
-        return f"Inserted new deployment {message['depID']} into {DEPLOYMENT_TABLE}."
+        return f"Inserted new deployment {message['dep_id']} into {DEPLOYMENT_TABLE}."
     except Exception as e:
         raise RuntimeError(f"Failed to insert into DynamoDB: {e}") from e
 
@@ -100,12 +100,12 @@ def main(event: dict):
             message_body = json.loads(record["body"])
             validate_message(message_body)
 
-            depID = message_body["depID"]
+            dep_id = message_body["dep_id"]
 
-            existing_item = check_existing_deployment(depID)
+            existing_item = check_existing_deployment(dep_id)
 
             if existing_item:
-                result = extend_ttl(depID)
+                result = extend_ttl(dep_id)
             else:
                 result = insert_into_dynamodb(message_body)
 
@@ -131,8 +131,8 @@ if __name__ == "__main__":
         "Records": [
             {
                 "body": json.dumps({
-                    "depID": "deploy-001",
-                    "labID": "lab-123",
+                    "dep_id": "deploy-001",
+                    "lab_id": "lab-123",
                     "email": "test.user@example.com",
                     "petname": "fluffy-panda"
                 })

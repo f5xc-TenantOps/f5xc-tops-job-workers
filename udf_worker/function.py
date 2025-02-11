@@ -29,16 +29,16 @@ def invoke_lambda(function_name: str, payload: dict) -> dict:
         raise RuntimeError(f"Failed to invoke Lambda '{function_name}': {e}") from e
 
 
-def get_lab_info(labID: str) -> dict:
+def get_lab_info(lab_id: str) -> dict:
     """Fetch lab information from DynamoDB using the lab ID."""
     try:
         response = dynamodb.get_item(
             TableName=LAB_CONFIGURATION_TABLE,
-            Key={"lab_id": {"S": labID}}
+            Key={"lab_id": {"S": lab_id}}
         )
 
         if "Item" not in response:
-            raise RuntimeError(f"Lab ID '{labID}' not found in DynamoDB.")
+            raise RuntimeError(f"Lab ID '{lab_id}' not found in DynamoDB.")
 
         item = response["Item"]
 
@@ -61,7 +61,7 @@ def get_lab_info(labID: str) -> dict:
         raise RuntimeError(f"Failed to fetch lab info from DynamoDB: {e}") from e
 
 
-def update_deployment_state(depID: str, updates: dict):
+def update_deployment_state(dep_id: str, updates: dict):
     """Update multiple fields in the deployment state in DynamoDB."""
     try:
         update_expression = "SET " + ", ".join([f"#{k} = :{k}" for k in updates.keys()])
@@ -70,7 +70,7 @@ def update_deployment_state(depID: str, updates: dict):
 
         dynamodb.update_item(
             TableName=DEPLOYMENT_STATE_TABLE,
-            Key={"depID": {"S": depID}},
+            Key={"dep_id": {"S": dep_id}},
             UpdateExpression=update_expression,
             ExpressionAttributeNames=expression_names,
             ExpressionAttributeValues=expression_values
@@ -84,21 +84,21 @@ def process_insert(record: dict):
     try:
         new_image = record["dynamodb"]["NewImage"]
 
-        depID = new_image["depID"]["S"]
-        labID = new_image["labID"]["S"]
+        dep_id = new_image["dep_id"]["S"]
+        lab_id = new_image["lab_id"]["S"]
         email = new_image["email"]["S"]
         petname = new_image["petname"]["S"]
 
         created_namespace = False
         created_user = False
 
-        update_deployment_state(depID, {"deployment_status": "IN_PROGRESS"})
+        update_deployment_state(dep_id, {"deployment_status": "IN_PROGRESS"})
 
         if not NS_CREATE_LAMBDA or not USER_CREATE_LAMBDA or not LAB_CONFIGURATION_TABLE:
             raise RuntimeError("Missing required environment variables.")
 
         # Fetch lab settings
-        lab_info = get_lab_info(labID)
+        lab_info = get_lab_info(lab_id)
 
         ssm_base_path = lab_info["ssm_base_path"]
         group_names = lab_info["group_names"]
@@ -111,17 +111,17 @@ def process_insert(record: dict):
             namespace_payload = {
                 "ssm_base_path": ssm_base_path,
                 "namespace_name": petname,
-                "description": f"Namespace for {depID}"
+                "description": f"Namespace for {dep_id}"
             }
 
-            update_deployment_state(depID, {"create_namespace": "IN_PROGRESS"})
+            update_deployment_state(dep_id, {"create_namespace": "IN_PROGRESS"})
             namespace_response = invoke_lambda(NS_CREATE_LAMBDA, namespace_payload)
             if namespace_response.get("statusCode") == 200:
-                update_deployment_state(depID, {"create_namespace": "SUCCESS"})
+                update_deployment_state(dep_id, {"create_namespace": "SUCCESS"})
                 namespace_roles.append({"namespace": petname, "role": "ves-io-admin"})
                 created_namespace = True
             else:
-                update_deployment_state(depID, {"create_namespace": "FAILED"})
+                update_deployment_state(dep_id, {"create_namespace": "FAILED"})
 
         # Step 2: Create User
         user_payload = {
@@ -133,17 +133,17 @@ def process_insert(record: dict):
             "namespace_roles": namespace_roles
         }
 
-        update_deployment_state(depID, {"create_user": "IN_PROGRESS"})
+        update_deployment_state(dep_id, {"create_user": "IN_PROGRESS"})
         user_response = invoke_lambda(USER_CREATE_LAMBDA, user_payload)
         if user_response.get("statusCode") == 200:
-            update_deployment_state(depID, {"create_user": "SUCCESS"})
+            update_deployment_state(dep_id, {"create_user": "SUCCESS"})
             created_user = True
         else:
-            update_deployment_state(depID, {"create_user": "FAILED"})
+            update_deployment_state(dep_id, {"create_user": "FAILED"})
 
         # ✅ Step 3: Execute Pre-Lambda (if defined)
         if pre_lambda:
-            update_deployment_state(depID, {"pre_lambda": "IN_PROGRESS"})
+            update_deployment_state(dep_id, {"pre_lambda": "IN_PROGRESS"})
             pre_lambda_payload = {
                 "ssm_base_path": ssm_base_path,
                 "petname": petname,
@@ -152,18 +152,18 @@ def process_insert(record: dict):
             pre_lambda_response = invoke_lambda(pre_lambda, pre_lambda_payload)
 
             if pre_lambda_response.get("statusCode") == 200:
-                update_deployment_state(depID, {"pre_lambda": "SUCCESS"})
+                update_deployment_state(dep_id, {"pre_lambda": "SUCCESS"})
             else:
-                update_deployment_state(depID, {"pre_lambda": "FAILED"})
+                update_deployment_state(dep_id, {"pre_lambda": "FAILED"})
 
         # ✅ Store created flags in DynamoDB
-        update_deployment_state(depID, {
+        update_deployment_state(dep_id, {
             "created_namespace": created_namespace,
             "created_user": created_user
         })
 
     except Exception as e:
-        update_deployment_state(depID, {"deployment_status": "FAILED"})
+        update_deployment_state(dep_id, {"deployment_status": "FAILED"})
         print(f"Error processing INSERT record: {e}")
         raise
 
