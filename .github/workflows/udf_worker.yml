@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package udf_worker
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'udf_worker/**'
+      - '.github/workflows/udf_worker.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: udf_worker
+  LAMBDA_DIR: udf_worker
 
 jobs:
   build-and-upload:

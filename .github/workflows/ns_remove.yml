@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package ns_remove
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'ns_remove/**'
+      - '.github/workflows/ns_remove.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: ns_remove
+  LAMBDA_DIR: ns_remove
 
 jobs:
   build-and-upload:

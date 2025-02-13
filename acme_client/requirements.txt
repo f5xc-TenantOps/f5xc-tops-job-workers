@@ -1,0 +1,4 @@
+certbot
+certbot-dns-route53
+boto3
+cryptography==3.4.8

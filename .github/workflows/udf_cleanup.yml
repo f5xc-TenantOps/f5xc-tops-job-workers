@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package udf_cleanup
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'udf_cleanup/**'
+      - '.github/workflows/udf_cleanup.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: udf_cleanup
+  LAMBDA_DIR: udf_cleanup
 
 jobs:
   build-and-upload:

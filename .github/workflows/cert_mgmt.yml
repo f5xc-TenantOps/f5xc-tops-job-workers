@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package cert_mgmt
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'cert_mgmt/**'
+      - '.github/workflows/cert_mgmt.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: cert_mgmt
+  LAMBDA_DIR: cert_mgmt
 
 jobs:
   build-and-upload:

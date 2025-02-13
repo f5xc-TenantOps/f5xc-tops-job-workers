@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package ns_create
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'ns_create/**'
+      - '.github/workflows/ns_create.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: ns_create
+  LAMBDA_DIR: ns_create
 
 jobs:
   build-and-upload:

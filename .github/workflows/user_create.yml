@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package user_create
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'user_create/**'
+      - '.github/workflows/user_create.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: user_create
+  LAMBDA_DIR: user_create
 
 jobs:
   build-and-upload:

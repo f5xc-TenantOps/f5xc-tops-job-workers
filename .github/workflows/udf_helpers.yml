@@ -1,0 +1,80 @@
+name: Package udf_helpers Lambda Functions
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'udf_helpers/**'
+      - '.github/workflows/package_udf_helpers.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Python
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      # Step 3: Find all directories in udf_helpers/ and process each function
+      - name: Find and process Lambda functions
+        run: |
+          for dir in udf_helpers/*/; do
+            if [[ -f "${dir}function.py" && -f "${dir}requirements.txt" ]]; then
+              FUNCTION_NAME=$(basename "$dir")
+
+              # Set environment variables dynamically based on branch
+              if [[ "${{ github.ref_name }}" == "dev" ]]; then
+                ZIP_NAME="${FUNCTION_NAME}_dev.zip"
+                S3_KEY="${FUNCTION_NAME}_dev.zip"
+                S3_BUCKET="tops-lambda-bucket-dev"
+              elif [[ "${{ github.ref_name }}" == "main" ]]; then
+                ZIP_NAME="${FUNCTION_NAME}.zip"
+                S3_KEY="${FUNCTION_NAME}.zip"
+                S3_BUCKET="tops-lambda-bucket"
+              fi
+
+              echo "Processing function: ${FUNCTION_NAME}"
+              echo "ZIP_NAME=${ZIP_NAME}"
+              echo "S3_KEY=${S3_KEY}"
+              echo "S3_BUCKET=${S3_BUCKET}"
+
+              # Install dependencies
+              python -m pip install --upgrade pip
+              pip install -r "${dir}/requirements.txt" -t "${dir}/package"
+
+              # Package Lambda function
+              cp "${dir}/function.py" "${dir}/package/"
+              cd "${dir}/package"
+              zip -r "../../../${ZIP_NAME}" .
+              cd ../../../
+
+              # Upload ZIP to S3
+              aws s3 cp "${ZIP_NAME}" "s3://${S3_BUCKET}/${S3_KEY}" --region us-west-2
+
+              # Upload ZIP as artifact
+              echo "Uploading artifact: ${ZIP_NAME}"
+              echo "ARTIFACT_NAME=${FUNCTION_NAME}_package_${{ github.ref_name }}" >> $GITHUB_ENV
+              echo "ARTIFACT_PATH=${ZIP_NAME}" >> $GITHUB_ENV
+            fi
+          done
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-west-2
+
+      # Step 4: Upload all Lambda artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_PATH }}

@@ -1,4 +1,4 @@
-name: Package token_refresh
+name: Package acme_client
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - dev
       - main
     paths:
-      - 'token_refresh/**'
-      - '.github/workflows/token_refresh.yml'
+      - 'acme_client/**'
+      - '.github/workflows/acme_client.yml'
   workflow_dispatch:
 
 env:
-  LAMBDA_NAME: token_refresh
-  LAMBDA_DIR: token_refresh
+  LAMBDA_NAME: acme_client
+  LAMBDA_DIR: acme_client
 
 jobs:
   build-and-upload:
