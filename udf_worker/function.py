@@ -122,7 +122,7 @@ def process_insert(record: dict):
         # Step 2: Create User
         user_payload = {
             "ssm_base_path": ssm_base_path,
-            "first_name": email.split("@")[0],
+            "first_name": "Lab",
             "last_name": "User",
             "email": email,
             "group_names": group_names,
@@ -150,6 +150,8 @@ def process_insert(record: dict):
                 update_deployment_state(dep_id, {"pre_lambda": "SUCCESS"})
             else:
                 update_deployment_state(dep_id, {"pre_lambda": "FAILED"})
+
+        update_deployment_state(dep_id, {"deployment_status": "COMPLETED"})
 
     except Exception as e:
         update_deployment_state(dep_id, {"deployment_status": "FAILED"})
