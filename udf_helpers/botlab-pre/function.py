@@ -85,7 +85,7 @@ def wait_for_origin_pool(_api, namespace: str, origin_name: str, retries: int = 
     raise RuntimeError(f"Timeout waiting for Origin Pool '{origin_name}' to be available.")
 
 
-def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, cert_name: str, origin_name: str) -> str:
+def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, origin_name: str) -> str:
     """
     Create an HTTP Load Balancer in the tenant.
     """
@@ -165,7 +165,7 @@ def main(payload: dict):
         wait_for_origin_pool(origin_api, namespace, origin_name)
 
         # Create HTTP Load Balancer
-        lb_result_message = create_http_load_balancer(lb_api, namespace, lb_name, domain, cert_name, origin_name)
+        lb_result_message = create_http_load_balancer(lb_api, namespace, lb_name, domain, origin_name)
 
         res = {
             "statusCode": 200,
