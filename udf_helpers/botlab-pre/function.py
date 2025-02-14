@@ -98,7 +98,7 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, o
             },
             "spec": {
                 "domains": [domain],
-                "http:": {
+                "http": {
                     "port": 80
                 },
                 "default_route_pools": [
