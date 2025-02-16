@@ -182,7 +182,7 @@ def main(payload: dict):
             raise RuntimeError("Missing required environment variable: ENV")
 
         # Set domain and certificate based on ENV
-        base_domain = f"app-lab{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
+        base_domain = f"lab-app{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
         #cert_name = f"app-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
         cert_name = "caas-lab-certificate"
 
