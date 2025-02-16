@@ -59,10 +59,14 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
     except (BotoCoreError, ClientError) as e:
         raise RuntimeError(f"Error uploading to S3: {str(e)}") from e
     except SystemExit as e:
+        with open("/tmp/certbot/logs/letsencrypt.log", "r") as log_file:
+            print(log_file.read())
         raise RuntimeError(f"Certbot failed with exit code {e.code}") from e
     except Exception as e:
+        with open("/tmp/certbot/logs/letsencrypt.log", "r") as log_file:
+            print(log_file.read())
         raise RuntimeError(f"Unexpected error during certbot execution: {str(e)}") from e
-
+    
 
 def main():
     """
