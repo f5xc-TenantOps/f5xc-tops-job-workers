@@ -59,7 +59,7 @@ def certbot_auth_hook():
     Certbot manual authentication hook - creates the DNS TXT record.
     """
     validation_value = os.environ.get("CERTBOT_VALIDATION")
-    zone_id = os.environ.get("ZONE_ID")
+    zone_id = os.environ.get("CHALLENGE_ZONE_ID")
     record_name = os.environ.get("CHALLENGE_RECORD")
     if not validation_value or not zone_id or not record_name:
         print("Missing required environment variables for DNS challenge.")
@@ -73,7 +73,7 @@ def certbot_cleanup_hook():
     Certbot manual cleanup hook - removes the DNS TXT record.
     """
     validation_value = os.environ.get("CERTBOT_VALIDATION")
-    zone_id = os.environ.get("ZONE_ID")
+    zone_id = os.environ.get("CHALLENGE_ZONE_ID")
     record_name = os.environ.get("CHALLENGE_RECORD")
     if not validation_value or not zone_id or not record_name:
         print("Missing required environment variables for DNS challenge.")
@@ -176,11 +176,8 @@ def main():
         domain = os.environ.get("DOMAIN")
         email = os.environ.get("EMAIL")
         bucket_name = os.environ.get("S3_BUCKET")
-        zone_id = os.environ.get("CHALLENGE_ZONE_ID")
 
-        challenge_record = os.environ.get("CHALLENGE_RECORD", f"_acme-challenge.{domain}")
-
-        missing_vars = [var for var in ("CERT_NAME", "DOMAIN", "EMAIL", "S3_BUCKET", "CHALLENGE_ZONE_ID") if os.environ.get(var) is None]
+        missing_vars = [var for var in ("CERT_NAME", "DOMAIN", "EMAIL", "S3_BUCKET", "CHALLENGE_RECORD", "CHALLENGE_ZONE_ID") if os.environ.get(var) is None]
         if missing_vars:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
