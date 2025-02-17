@@ -110,7 +110,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                         },
                         "certificates": [
                             {
-                                "tenant": "f5-xc-lab-sec-lpuwkdtb",
                                 "namespace": "shared",
                                 "name": cert_name,
                                 "kind": "certificate"
@@ -122,7 +121,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                 "default_route_pools": [
                     {
                         "pool": {
-                            "tenant": "f5-xc-lab-sec-lpuwkdtb",
                             "namespace": namespace,
                             "name": origin_name,
                             "kind": "origin_pool"
@@ -130,7 +128,8 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                         "weight": 1,
                         "priority": 1
                     }
-                ]
+                ],
+                "enable_malicious_user_detection": {}
             }
         }
         print(payload)
@@ -153,7 +152,7 @@ def main(payload: dict):
             raise RuntimeError("Missing required environment variable: ENV")
 
         # Set domain and certificate based on ENV
-        base_domain = f"sec-lab{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
+        base_domain = f"lab-sec{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
         cert_name = f"sec-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
 
         ssm_base_path = payload["ssm_base_path"]
