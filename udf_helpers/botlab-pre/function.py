@@ -104,7 +104,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, o
                 "default_route_pools": [
                     {
                         "pool": {
-                            "tenant": "f5-xc-lab-sec-lpuwkdtb",
                             "namespace": namespace,
                             "name": origin_name,
                             "kind": "origin_pool"
@@ -136,7 +135,7 @@ def main(payload: dict):
 
         # Set domain and certificate based on ENV
         base_domain = f"lab-sec{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
-        #cert_name = f"sec-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
+        #cert_name = f"lab-sec-wildcard{'-dev' if env.lower() == 'dev' else ''}"
 
         ssm_base_path = payload["ssm_base_path"]
         petname = payload["petname"]
