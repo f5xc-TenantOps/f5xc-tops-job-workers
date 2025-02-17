@@ -37,6 +37,7 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
             "--dns-route53",
             "--domains", f"*.{domain}",
             "--cert-name", domain,
+            "--dns-route53-propagation-seconds", "60",
             "--config-dir", "/tmp/certbot/config",
             "--work-dir", "/tmp/certbot/work",
             "--logs-dir", "/tmp/certbot/logs",
