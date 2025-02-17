@@ -66,7 +66,7 @@ def certbot_auth_hook():
         raise RuntimeError("Missing required environment variables for DNS challenge.")
     
     update_dns_record("UPSERT", record_name, zone_id, validation_value)
-    time.sleep(30)  # Allow time for DNS propagation
+    time.sleep(30)
 
 def certbot_cleanup_hook():
     """
@@ -80,34 +80,6 @@ def certbot_cleanup_hook():
         raise RuntimeError("Missing required environment variables for DNS challenge.")
     
     update_dns_record("DELETE", record_name, zone_id, validation_value)
-
-def write_dns_hook_scripts(challenge_record: str, zone_id: str):
-    """
-    Creates the DNS auth and cleanup hook scripts in /tmp/ for Certbot, using provided parameters.
-    """
-    auth_hook_path = "/tmp/auth-hook.sh"
-    cleanup_hook_path = "/tmp/cleanup-hook.sh"
-   
-    auth_script_content = f"""#!/bin/bash
-ZONE_ID="{zone_id}"
-RECORD_NAME="{challenge_record}"
-aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" --change-batch "{{\"Changes\":[{{\"Action\":\"UPSERT\",\"ResourceRecordSet\":{{\"Name\":\"$RECORD_NAME\",\"Type\":\"TXT\",\"TTL\":30,\"ResourceRecords\":[{{\"Value\":\"\"$CERTBOT_VALIDATION\"\"}}]}}}}]}}"
-sleep 30
-"""
-    with open(auth_hook_path, "w", encoding="utf-8") as auth_file:
-        auth_file.write(auth_script_content)
- 
-    cleanup_script_content = f"""#!/bin/bash
-ZONE_ID="{zone_id}"
-RECORD_NAME="{challenge_record}"
-aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" --change-batch "{{\"Changes\":[{{\"Action\":\"DELETE\",\"ResourceRecordSet\":{{\"Name\":\"$RECORD_NAME\",\"Type\":\"TXT\",\"TTL\":30,\"ResourceRecords\":[{{\"Value\":\"\"$CERTBOT_VALIDATION\"\"}}]}}}}]}}"
-"""
-    with open(cleanup_hook_path, "w", encoding="utf-8") as cleanup_file:
-        cleanup_file.write(cleanup_script_content)
-    
-    os.chmod(auth_hook_path, 0o755)
-    os.chmod(cleanup_hook_path, 0o755)
-    return auth_hook_path, cleanup_hook_path
 
 def run_certbot(domain: str, email: str):
     """
@@ -198,7 +170,6 @@ def main():
             else:
                 raise RuntimeError(f"Failed to check S3 for existing certificate: {e}") from e
 
-        #auth_hook, cleanup_hook = write_dns_hook_scripts(challenge_record, zone_id)
         run_certbot(domain, email)
 
         res = upload_cert_to_s3(cert_name, domain, bucket_name)
