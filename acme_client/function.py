@@ -10,9 +10,6 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from certbot.main import main as certbot_main
 
-MAX_RETRIES = 5  # Max retries for Certbot if DNS isn't propagated yet
-WAIT_SECONDS = 30  # Time to wait before retrying
-
 def check_cert_expiry(cert_path: str) -> bool:
     """
     Checks the expiry date of an existing certificate.
@@ -26,44 +23,95 @@ def check_cert_expiry(cert_path: str) -> bool:
     except Exception as e:
         raise RuntimeError(f"Failed to check certificate expiry: {str(e)}") from e
 
+def update_dns_record(action: str, record_name: str, zone_id: str, validation_value: str):
+    """
+    Updates or deletes a TXT record in Route 53 for Certbot DNS validation.
+    """
+    client = boto3.client("route53")
+    change_batch = {
+        "Changes": [
+            {
+                "Action": action,
+                "ResourceRecordSet": {
+                    "Name": record_name,
+                    "Type": "TXT",
+                    "TTL": 30,
+                    "ResourceRecords": [{"Value": f'"{validation_value}"'}]
+                }
+            }
+        ]
+    }
+    
+    try:
+        print(f"{action} record {record_name} in zone {zone_id} with value {validation_value}")
+        response = client.change_resource_record_sets(
+            HostedZoneId=zone_id,
+            ChangeBatch=change_batch
+        )
+        print(f"DNS update response: {response}")
+        return response
+    except (BotoCoreError, ClientError) as e:
+        print(f"Failed to update DNS record: {e}")
+        raise RuntimeError(f"Error updating DNS record: {str(e)}") from e
+
+def certbot_auth_hook():
+    """
+    Certbot manual authentication hook - creates the DNS TXT record.
+    """
+    validation_value = os.environ.get("CERTBOT_VALIDATION")
+    zone_id = os.environ.get("CHALLENGE_ZONE_ID")
+    record_name = os.environ.get("CHALLENGE_RECORD")
+    if not validation_value or not zone_id or not record_name:
+        print("Missing required environment variables for DNS challenge.")
+        raise RuntimeError("Missing required environment variables for DNS challenge.")
+    
+    update_dns_record("UPSERT", record_name, zone_id, validation_value)
+    time.sleep(30)
+
+def certbot_cleanup_hook():
+    """
+    Certbot manual cleanup hook - removes the DNS TXT record.
+    """
+    validation_value = os.environ.get("CERTBOT_VALIDATION")
+    zone_id = os.environ.get("CHALLENGE_ZONE_ID")
+    record_name = os.environ.get("CHALLENGE_RECORD")
+    if not validation_value or not zone_id or not record_name:
+        print("Missing required environment variables for DNS challenge.")
+        raise RuntimeError("Missing required environment variables for DNS challenge.")
+    
+    update_dns_record("DELETE", record_name, zone_id, validation_value)
 
 def run_certbot(domain: str, email: str):
     """
-    Runs Certbot with retries in case of DNS propagation delay.
+    Runs Certbot
     """
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            print(f"Attempt {attempt}/{MAX_RETRIES}: Running Certbot...")
-            certbot_main([
-                "certonly",
-                "--non-interactive",
-                "--agree-tos",
-                "--email", email,
-                "--dns-route53",
-                "--domains", f"*.{domain}",
-                "--cert-name", domain,
-                "--preferred-challenges", "dns",
-                "--config-dir", "/tmp/certbot/config",
-                "--work-dir", "/tmp/certbot/work",
-                "--logs-dir", "/tmp/certbot/logs",
-            ])
+    try:
+        print("Running Certbot...")
+        certbot_main([
+            "certonly",
+            "--non-interactive",
+            "--agree-tos",
+            "--email", email,
+            "--manual",
+            "--preferred-challenges", "dns",
+            "--manual-auth-hook", "python -c 'import function; function.certbot_auth_hook()'",
+            "--manual-cleanup-hook", "python -c 'import function; function.certbot_cleanup_hook()'",
+            "--domains", f"*.{domain}",
+            "--cert-name", domain,
+            "--config-dir", "/tmp/certbot/config",
+            "--work-dir", "/tmp/certbot/work",
+            "--logs-dir", "/tmp/certbot/logs",
+        ])
+        print("Certbot succeeded.")
 
-            print("Certbot succeeded.")
-            break  # Exit loop if Certbot succeeds
+    except SystemExit as e:
+        with open("/tmp/certbot/logs/letsencrypt.log", "r", encoding="utf-8") as log_file:
+            certbot_logs = log_file.read()
+            print("===== CERTBOT LOG =====")
+            print(certbot_logs)
+            print("===== END LOG =====")
+        raise RuntimeError(f"Certbot failed: {e}") from e
 
-        except SystemExit as e:
-            with open("/tmp/certbot/logs/letsencrypt.log", "r", encoding="utf-8") as log_file:
-                certbot_logs = log_file.read()
-                print(f"===== CERTBOT LOG (Attempt {attempt}) =====")
-                print(certbot_logs)
-                print("===== END LOG =====")
-
-            if attempt < MAX_RETRIES:
-                print(f"Certbot failed on attempt {attempt}. Retrying in {WAIT_SECONDS} seconds...")
-                time.sleep(WAIT_SECONDS)
-            else:
-                print("Certbot failed after multiple retries. Raising error.")
-                raise RuntimeError(f"Certbot failed after {MAX_RETRIES} attempts.") from e
 
 
 def upload_cert_to_s3(cert_name: str, domain: str, bucket_name: str):
@@ -101,7 +149,7 @@ def main():
         email = os.environ.get("EMAIL")
         bucket_name = os.environ.get("S3_BUCKET")
 
-        missing_vars = [var for var in ("CERT_NAME", "DOMAIN", "EMAIL", "S3_BUCKET") if os.environ.get(var) is None]
+        missing_vars = [var for var in ("CERT_NAME", "DOMAIN", "EMAIL", "S3_BUCKET", "CHALLENGE_RECORD", "CHALLENGE_ZONE_ID") if os.environ.get(var) is None]
         if missing_vars:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
@@ -122,10 +170,8 @@ def main():
             else:
                 raise RuntimeError(f"Failed to check S3 for existing certificate: {e}") from e
 
-        # Run Certbot with retry logic
         run_certbot(domain, email)
 
-        # Upload certificate to S3
         res = upload_cert_to_s3(cert_name, domain, bucket_name)
 
     except Exception as e:

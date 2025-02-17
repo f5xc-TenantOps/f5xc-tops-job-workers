@@ -110,7 +110,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                         },
                         "certificates": [
                             {
-                                "tenant": "f5-xc-lab-sec-lpuwkdtb",
                                 "namespace": "shared",
                                 "name": cert_name,
                                 "kind": "certificate"
