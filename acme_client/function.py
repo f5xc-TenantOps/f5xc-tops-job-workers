@@ -27,7 +27,7 @@ def check_cert_expiry(cert_path: str) -> bool:
         raise RuntimeError(f"Failed to check certificate expiry: {str(e)}") from e
 
 
-def run_certbot(domain: str, email: str, bucket_name: str, cert_name: str):
+def run_certbot(domain: str, email: str):
     """
     Runs Certbot with retries in case of DNS propagation delay.
     """
@@ -123,7 +123,7 @@ def main():
                 raise RuntimeError(f"Failed to check S3 for existing certificate: {e}") from e
 
         # Run Certbot with retry logic
-        run_certbot(domain, email, bucket_name, cert_name)
+        run_certbot(domain, email)
 
         # Upload certificate to S3
         res = upload_cert_to_s3(cert_name, domain, bucket_name)
