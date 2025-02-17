@@ -2,6 +2,7 @@
 Generates a wildcard DNS certificate and uploads it to S3, renewing if necessary.
 """
 import os
+import time
 from datetime import datetime, timedelta
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -9,6 +10,8 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from certbot.main import main as certbot_main
 
+MAX_RETRIES = 5  # Max retries for Certbot if DNS isn't propagated yet
+WAIT_SECONDS = 30  # Time to wait before retrying
 
 def check_cert_expiry(cert_path: str) -> bool:
     """
@@ -24,25 +27,50 @@ def check_cert_expiry(cert_path: str) -> bool:
         raise RuntimeError(f"Failed to check certificate expiry: {str(e)}") from e
 
 
-def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
+def run_certbot(domain: str, email: str, bucket_name: str, cert_name: str):
     """
-    Generates a wildcard DNS certificate via the Certbot Python API and uploads it to S3.
+    Runs Certbot with retries in case of DNS propagation delay.
+    """
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            print(f"Attempt {attempt}/{MAX_RETRIES}: Running Certbot...")
+            certbot_main([
+                "certonly",
+                "--non-interactive",
+                "--agree-tos",
+                "--email", email,
+                "--dns-route53",
+                "--domains", f"*.{domain}",
+                "--cert-name", domain,
+                "--preferred-challenges", "dns",
+                "--config-dir", "/tmp/certbot/config",
+                "--work-dir", "/tmp/certbot/work",
+                "--logs-dir", "/tmp/certbot/logs",
+            ])
+
+            print("Certbot succeeded.")
+            break  # Exit loop if Certbot succeeds
+
+        except SystemExit as e:
+            with open("/tmp/certbot/logs/letsencrypt.log", "r", encoding="utf-8") as log_file:
+                certbot_logs = log_file.read()
+                print(f"===== CERTBOT LOG (Attempt {attempt}) =====")
+                print(certbot_logs)
+                print("===== END LOG =====")
+
+            if attempt < MAX_RETRIES:
+                print(f"Certbot failed on attempt {attempt}. Retrying in {WAIT_SECONDS} seconds...")
+                time.sleep(WAIT_SECONDS)
+            else:
+                print("Certbot failed after multiple retries. Raising error.")
+                raise RuntimeError(f"Certbot failed after {MAX_RETRIES} attempts.") from e
+
+
+def upload_cert_to_s3(cert_name: str, domain: str, bucket_name: str):
+    """
+    Uploads the generated certificate to S3.
     """
     try:
-        certbot_main([
-            "certonly",
-            "--non-interactive",
-            "--agree-tos",
-            "--email", email,
-            "--dns-route53",
-            "--domains", f"*.{domain}",
-            "--cert-name", domain,
-            "--dns-route53-propagation-seconds", "60",
-            "--config-dir", "/tmp/certbot/config",
-            "--work-dir", "/tmp/certbot/work",
-            "--logs-dir", "/tmp/certbot/logs",
-        ])
-
         cert_path = f"/tmp/certbot/config/live/{domain}/fullchain.pem"
         key_path = f"/tmp/certbot/config/live/{domain}/privkey.pem"
 
@@ -53,6 +81,7 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
         s3_client.upload_file(cert_path, bucket_name, s3_cert_path)
         s3_client.upload_file(key_path, bucket_name, s3_key_path)
 
+        print(f"Certificate uploaded to S3 bucket {bucket_name} in path {cert_name}/")
         return {
             "statusCode": 200,
             "body": f"Certificate for {domain} generated and uploaded to S3 successfully in {cert_name}."
@@ -60,14 +89,6 @@ def certbot(domain: str, email: str, bucket_name: str, cert_name: str):
 
     except (BotoCoreError, ClientError) as e:
         raise RuntimeError(f"Error uploading to S3: {str(e)}") from e
-    except SystemExit as e:
-        with open("/tmp/certbot/logs/letsencrypt.log", "r", encoding="utf-8") as log_file:
-            print(log_file.read())
-        raise RuntimeError(f"Certbot failed with exit code {e.code}") from e
-    except Exception as e:
-        with open("/tmp/certbot/logs/letsencrypt.log", "r", encoding="utf-8") as log_file:
-            print(log_file.read())
-        raise RuntimeError(f"Unexpected error during certbot execution: {str(e)}") from e
 
 
 def main():
@@ -101,7 +122,12 @@ def main():
             else:
                 raise RuntimeError(f"Failed to check S3 for existing certificate: {e}") from e
 
-        res = certbot(domain, email, bucket_name, cert_name)
+        # Run Certbot with retry logic
+        run_certbot(domain, email, bucket_name, cert_name)
+
+        # Upload certificate to S3
+        res = upload_cert_to_s3(cert_name, domain, bucket_name)
+
     except Exception as e:
         err = {
             "statusCode": 500,
