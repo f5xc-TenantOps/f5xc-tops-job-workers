@@ -23,6 +23,64 @@ def check_cert_expiry(cert_path: str) -> bool:
     except Exception as e:
         raise RuntimeError(f"Failed to check certificate expiry: {str(e)}") from e
 
+def update_dns_record(action: str, record_name: str, zone_id: str, validation_value: str):
+    """
+    Updates or deletes a TXT record in Route 53 for Certbot DNS validation.
+    """
+    client = boto3.client("route53")
+    change_batch = {
+        "Changes": [
+            {
+                "Action": action,
+                "ResourceRecordSet": {
+                    "Name": record_name,
+                    "Type": "TXT",
+                    "TTL": 30,
+                    "ResourceRecords": [{"Value": f'"{validation_value}"'}]
+                }
+            }
+        ]
+    }
+    
+    try:
+        print(f"{action} record {record_name} in zone {zone_id} with value {validation_value}")
+        response = client.change_resource_record_sets(
+            HostedZoneId=zone_id,
+            ChangeBatch=change_batch
+        )
+        print(f"DNS update response: {response}")
+        return response
+    except (BotoCoreError, ClientError) as e:
+        print(f"Failed to update DNS record: {e}")
+        raise RuntimeError(f"Error updating DNS record: {str(e)}") from e
+
+def certbot_auth_hook():
+    """
+    Certbot manual authentication hook - creates the DNS TXT record.
+    """
+    validation_value = os.environ.get("CERTBOT_VALIDATION")
+    zone_id = os.environ.get("ZONE_ID")
+    record_name = os.environ.get("CHALLENGE_RECORD")
+    if not validation_value or not zone_id or not record_name:
+        print("Missing required environment variables for DNS challenge.")
+        raise RuntimeError("Missing required environment variables for DNS challenge.")
+    
+    update_dns_record("UPSERT", record_name, zone_id, validation_value)
+    time.sleep(30)  # Allow time for DNS propagation
+
+def certbot_cleanup_hook():
+    """
+    Certbot manual cleanup hook - removes the DNS TXT record.
+    """
+    validation_value = os.environ.get("CERTBOT_VALIDATION")
+    zone_id = os.environ.get("ZONE_ID")
+    record_name = os.environ.get("CHALLENGE_RECORD")
+    if not validation_value or not zone_id or not record_name:
+        print("Missing required environment variables for DNS challenge.")
+        raise RuntimeError("Missing required environment variables for DNS challenge.")
+    
+    update_dns_record("DELETE", record_name, zone_id, validation_value)
+
 def write_dns_hook_scripts(challenge_record: str, zone_id: str):
     """
     Creates the DNS auth and cleanup hook scripts in /tmp/ for Certbot, using provided parameters.
@@ -51,7 +109,7 @@ aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" --change-bat
     os.chmod(cleanup_hook_path, 0o755)
     return auth_hook_path, cleanup_hook_path
 
-def run_certbot(domain: str, email: str, auth_hook: str = "/tmp/auth-hook.sh", cleanup_hook: str = "/tmp/cleanup-hook.sh"):
+def run_certbot(domain: str, email: str):
     """
     Runs Certbot
     """
@@ -64,8 +122,8 @@ def run_certbot(domain: str, email: str, auth_hook: str = "/tmp/auth-hook.sh", c
             "--email", email,
             "--manual",
             "--preferred-challenges", "dns",
-            "--manual-auth-hook", auth_hook,
-            "--manual-cleanup-hook", cleanup_hook,
+            "--manual-auth-hook", "python -c 'import lambda_function; lambda_function.certbot_auth_hook()'",
+            "--manual-cleanup-hook", "python -c 'import lambda_function; lambda_function.certbot_cleanup_hook()'",
             "--domains", f"*.{domain}",
             "--cert-name", domain,
             "--config-dir", "/tmp/certbot/config",
@@ -118,10 +176,11 @@ def main():
         domain = os.environ.get("DOMAIN")
         email = os.environ.get("EMAIL")
         bucket_name = os.environ.get("S3_BUCKET")
-        challenge_record = os.environ.get("CHALLENGE_RECORD", f"_acme-challenge.{domain}")
         zone_id = os.environ.get("CHALLENGE_ZONE_ID")
 
-        missing_vars = [var for var in ("CERT_NAME", "DOMAIN", "EMAIL", "S3_BUCKET") if os.environ.get(var) is None]
+        challenge_record = os.environ.get("CHALLENGE_RECORD", f"_acme-challenge.{domain}")
+
+        missing_vars = [var for var in ("CERT_NAME", "DOMAIN", "EMAIL", "S3_BUCKET", "CHALLENGE_ZONE_ID") if os.environ.get(var) is None]
         if missing_vars:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
@@ -142,8 +201,8 @@ def main():
             else:
                 raise RuntimeError(f"Failed to check S3 for existing certificate: {e}") from e
 
-        auth_hook, cleanup_hook = write_dns_hook_scripts(challenge_record, zone_id)
-        run_certbot(domain, email, auth_hook, cleanup_hook)
+        #auth_hook, cleanup_hook = write_dns_hook_scripts(challenge_record, zone_id)
+        run_certbot(domain, email)
 
         res = upload_cert_to_s3(cert_name, domain, bucket_name)
 
