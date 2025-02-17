@@ -50,7 +50,6 @@ def create_origin_pool(_api, namespace: str, origin_name: str) -> str:
                     "service_name": f"mosquitto.{namespace}",
                     "site_locator": {
                         "virtual_site": {
-                        "tenant": "f5-xc-lab-app-jqguisgi",
                         "namespace": "shared",
                         "name": "appworld2025-k8s-vsite",
                         "kind": "virtual_site"
@@ -118,7 +117,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                 "origin_pools_weights": [
                 {
                     "pool": {
-                    "tenant": "f5-xc-lab-app-jqguisgi",
                     "namespace": namespace,
                     "name": origin_name,
                     "kind": "origin_pool"
@@ -134,7 +132,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                     "virtual_site": {
                         "network": "SITE_NETWORK_INSIDE_AND_OUTSIDE",
                         "virtual_site": {
-                        "tenant": "f5-xc-lab-app-jqguisgi",
                         "namespace": "shared",
                         "name": "appworld2025-k8s-vsite",
                         "kind": "virtual_site"
@@ -151,7 +148,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                     },
                     "certificates": [
                     {
-                        "tenant": "f5-xc-lab-app-jqguisgi",
                         "namespace": "shared",
                         "name": cert_name,
                         "kind": "certificate"
@@ -181,9 +177,7 @@ def main(payload: dict):
         if not env:
             raise RuntimeError("Missing required environment variable: ENV")
 
-        # Set domain and certificate based on ENV
-        base_domain = f"lab-app{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
-        #cert_name = f"app-lab-wildcard{'-dev' if env.lower() == 'dev' else ''}"
+        base_domain = "caas.lab-app.f5demos.com"
         cert_name = "caas-lab-certificate"
 
         ssm_base_path = payload["ssm_base_path"]

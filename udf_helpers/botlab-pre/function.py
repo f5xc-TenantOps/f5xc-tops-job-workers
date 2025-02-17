@@ -104,7 +104,6 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, o
                 "default_route_pools": [
                     {
                         "pool": {
-                            "tenant": "f5-xc-lab-sec-lpuwkdtb",
                             "namespace": namespace,
                             "name": origin_name,
                             "kind": "origin_pool"
