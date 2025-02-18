@@ -3,7 +3,7 @@ This module refreshes an F5 XC tenant token.
 """
 import os
 import boto3
-from f5xc_tops_py_client import session, apicred
+from f5xc_tops_py_client import session, apicred, svccred
 
 
 def get_parameters(parameters: list, region_name: str = "us-west-2") -> dict:
@@ -42,18 +42,25 @@ def main():
                 f"{base_path}/tenant-url",
                 f"{base_path}/token-value",
                 f"{base_path}/token-name",
+                f"{base_path}/token-type", 
             ],
             region_name=region,
         )
+        
+        cred_type = params.get("token-type", "").lower()
+        if cred_type not in {"apicred", "svccred"}:
+            raise ValueError(f"Invalid token-type: {cred_type}. Must be 'apicred' or 'svccred'.")
 
-        auth = session(tenant_url=params["tenant-url"], api_token=params["token-value"])
-        _api = apicred(auth)
+        if cred_type == "svccred":
+            _api = svccred(session(tenant_url=params["tenant-url"], api_token=params["token-value"]))
+        else:
+            _api = apicred(session(tenant_url=params["tenant-url"], api_token=params["token-value"]))
 
         refresh_token(_api, params["token-name"], expiration_days=7)
 
         res = {
             "statusCode": 200,
-            "body": f"Token {params['token-name']} refreshed successfully.",
+            "body": f"Token {params['token-name']} refreshed successfully using {cred_type}.",
         }
     except Exception as e:
         err = {
