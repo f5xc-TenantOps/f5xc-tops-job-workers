@@ -46,7 +46,7 @@ def main():
             ],
             region_name=region,
         )
-        
+
         cred_type = params.get("token-type", "").lower()
         if cred_type not in {"apicred", "svccred"}:
             raise ValueError(f"Invalid token-type: {cred_type}. Must be 'apicred' or 'svccred'.")
@@ -60,7 +60,7 @@ def main():
 
         res = {
             "statusCode": 200,
-            "body": f"Token {params['token-name']} refreshed successfully using {cred_type}.",
+            "body": f"{cred_type} token {params['token-name']} refreshed successfully.",
         }
     except Exception as e:
         err = {
