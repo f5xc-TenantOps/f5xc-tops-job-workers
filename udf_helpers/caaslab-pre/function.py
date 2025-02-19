@@ -177,7 +177,7 @@ def main(payload: dict):
         if not env:
             raise RuntimeError("Missing required environment variable: ENV")
 
-        base_domain = "caas.lab-app.f5demos.com"
+        base_domain = "lab-app.f5demos.com"
         cert_name = "caas-lab-certificate"
 
         ssm_base_path = payload["ssm_base_path"]
