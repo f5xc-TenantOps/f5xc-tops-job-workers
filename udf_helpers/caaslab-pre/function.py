@@ -4,7 +4,7 @@ Create an Origin Pool and HTTP Load Balancer in an F5 XC tenant.
 import os
 import time
 import boto3
-from f5xc_tops_py_client import session, origin_pool, http_loadbalancer
+from f5xc_tops_py_client import session, origin_pool, tcp_loadbalancer
 
 
 def get_parameters(parameters: list, region_name: str = "us-east-1") -> dict:
@@ -115,46 +115,46 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
                 "dns_volterra_managed": False,
                 "origin_pools": [],
                 "origin_pools_weights": [
-                {
-                    "pool": {
-                    "namespace": namespace,
-                    "name": origin_name,
-                    "kind": "origin_pool"
-                    },
-                    "weight": 1,
-                    "priority": 1,
-                    "endpoint_subsets": {}
-                }
+                    {
+                        "pool": {
+                        "namespace": namespace,
+                        "name": origin_name,
+                        "kind": "origin_pool"
+                        },
+                        "weight": 1,
+                        "priority": 1,
+                        "endpoint_subsets": {}
+                    }
                 ],
                 "advertise_custom": {
-                "advertise_where": [
-                    {
-                    "virtual_site": {
-                        "network": "SITE_NETWORK_INSIDE_AND_OUTSIDE",
+                    "advertise_where": [
+                        {
                         "virtual_site": {
-                        "namespace": "shared",
-                        "name": "appworld2025-k8s-vsite",
-                        "kind": "virtual_site"
+                            "network": "SITE_NETWORK_INSIDE_AND_OUTSIDE",
+                                "virtual_site": {
+                                "namespace": "shared",
+                                "name": "appworld2025-k8s-vsite",
+                                "kind": "virtual_site"
+                                }
+                        },
+                        "use_default_port": {}
                         }
-                    },
-                    "use_default_port": {}
-                    }
-                ]
+                    ]
                 },
                 "tls_tcp": {
-                "tls_cert_params": {
-                    "tls_config": {
-                    "default_security": {}
-                    },
-                    "certificates": [
-                    {
-                        "namespace": "shared",
-                        "name": cert_name,
-                        "kind": "certificate"
+                    "tls_cert_params": {
+                        "tls_config": {
+                        "default_security": {}
+                        },
+                        "certificates": [
+                            {
+                                "namespace": "shared",
+                                "name": cert_name,
+                                "kind": "certificate"
+                            }
+                        ],
+                        "no_mtls": {}
                     }
-                    ],
-                    "no_mtls": {}
-                }
                 },
                 "service_policies_from_namespace": {}
             }
@@ -202,7 +202,7 @@ def main(payload: dict):
 
         auth = session(tenant_url=params["tenant-url"], api_token=params["token-value"])
         origin_api = origin_pool(auth)
-        lb_api = http_loadbalancer(auth)
+        lb_api = tcp_loadbalancer(auth)
 
         # Create Origin Pool
         result_message = create_origin_pool(origin_api, namespace, origin_name)
