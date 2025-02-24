@@ -122,8 +122,8 @@ def process_insert(record: dict):
         # Step 2: Create User
         user_payload = {
             "ssm_base_path": ssm_base_path,
-            "first_name": "Lab",
-            "last_name": "User",
+            "first_name": "Lab User",
+            "last_name": dep_id.split("-")[0],
             "email": email,
             "group_names": group_names,
             "namespace_roles": namespace_roles

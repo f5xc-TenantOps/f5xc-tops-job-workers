@@ -163,7 +163,7 @@ def create_http_load_balancer(_api, namespace: str, lb_name: str, domain: str, c
         return f"HTTP Load Balancer '{lb_name}' created successfully."
 
     except Exception as e:
-        raise RuntimeError(f"Failed to create HTTP load balancer: {e}") from e
+        raise RuntimeError(f"Failed to create TCP load balancer: {e}") from e
 
 
 def main(payload: dict):
