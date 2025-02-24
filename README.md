@@ -5,7 +5,7 @@ These lambdas are used for tenantOps jobs.
 The lambdas are built via Github Action then pushed to an S3 bucket based on branch.
 They are deployed to AWS by the [tops-infrastucture] repository.
 
-## General Workers
+## 🧑‍🏭 General Workers 🧑‍🏭
 These are generalized workers used across all use cases (Sale tenant operations, UDF labs, etc.)
 
 ### [Acme Client](./acme_client/)
@@ -16,7 +16,7 @@ These are generalized workers used across all use cases (Sale tenant operations,
 ### [Cert Management](./cert_mgmt/)
 **Purpose:** Write certificate to an XC tenant.
 
-**Trigger:** on S3 bucket file creation/update.
+**Trigger:** S3 bucket file creation/update.
 
 ### [Token Refresh](./token_refresh/)
 **Purpose:** Update the expiry of an XC API token or service credential.
@@ -43,7 +43,7 @@ These are generalized workers used across all use cases (Sale tenant operations,
 
 **Trigger:** Invoked by another lambda.
 
-## UDF
+## 🖼️ UDF 🖼️
 These lambdas are used to trigger and clean UDF lab deployments.
 
 ### [UDF Dispatch](./udf_dispatch/)
