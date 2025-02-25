@@ -1,6 +1,6 @@
-import os
 import time
 import boto3
+import os
 
 # AWS Clients
 dynamodb = boto3.client("dynamodb")
@@ -21,7 +21,8 @@ def get_expired_entries():
     try:
         response = dynamodb.scan(
             TableName=DEPLOYMENT_TABLE,
-            FilterExpression="ttl < :now",
+            FilterExpression="#ttl_attr < :now",
+            ExpressionAttributeNames={"#ttl_attr": "ttl"},  # Alias for reserved keyword
             ExpressionAttributeValues={":now": {"N": str(current_time)}}
         )
 
