@@ -59,14 +59,15 @@ def create_user_in_tenant(_api, first_name: str, last_name: str, idm_type: str, 
         raise RuntimeError(f"Failed to create user: {e}") from e
 
 
-def update_user_in_tenant(_api, email: str, merged_roles: list) -> str:
+def update_user_in_tenant(_api, email: str, merged_roles: list, merged_group_names: list) -> str:
     """
-    Update an existing user in the tenant with new namespace roles.
+    Update an existing user in the tenant with merged namespace roles and group names.
     """
     try:
         updated_payload = _api.update_payload(
             email=email,
-            namespace_roles=merged_roles  # Merged namespace roles
+            namespace_roles=merged_roles, 
+            group_names=merged_group_names
         )
         _api.update(updated_payload)
         return f"User '{email}' updated successfully."
@@ -116,11 +117,17 @@ def main(payload: dict):
 
             if existing_user:
                 existing_roles = existing_user.get("namespace_roles", [])
+                existing_group_names = existing_user.get("group_names", [])
 
-                # Check if namespace_roles are different
-                if existing_roles != namespace_roles:
-                    merged_roles = merge_namespace_roles(existing_roles, namespace_roles)
-                    result_message = update_user_in_tenant(_api, email, merged_roles)
+                # Merge namespace roles
+                merged_roles = merge_namespace_roles(existing_roles, namespace_roles)
+
+                # Merge group names (remove duplicates)
+                merged_group_names = list(set(existing_group_names) | set(group_names))
+
+                # Only update if changes are detected
+                if existing_roles != merged_roles or existing_group_names != merged_group_names:
+                    result_message = update_user_in_tenant(_api, email, merged_roles, merged_group_names)
                 else:
                     result_message = f"User '{email}' already exists with the correct settings. No update needed."
             else:
@@ -141,7 +148,6 @@ def main(payload: dict):
 
     print(res)
     return res
-
 
 def lambda_handler(event, context):
     """
