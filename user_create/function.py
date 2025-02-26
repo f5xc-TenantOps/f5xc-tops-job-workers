@@ -59,13 +59,15 @@ def create_user_in_tenant(_api, first_name: str, last_name: str, idm_type: str, 
         raise RuntimeError(f"Failed to create user: {e}") from e
 
 
-def update_user_in_tenant(_api, email: str, merged_roles: list, merged_group_names: list) -> str:
+def update_user_in_tenant(_api, first_name: str, last_name: str, email: str, merged_roles: list, merged_group_names: list) -> str:
     """
     Update an existing user in the tenant with merged namespace roles and group names.
     """
     try:
         updated_payload = _api.update_payload(
             email=email,
+            first_name=first_name,
+            last_name=last_name,
             namespace_roles=merged_roles, 
             group_names=merged_group_names
         )
@@ -127,7 +129,7 @@ def main(payload: dict):
 
                 # Only update if changes are detected
                 if existing_roles != merged_roles or existing_group_names != merged_group_names:
-                    result_message = update_user_in_tenant(_api, email, merged_roles, merged_group_names)
+                    result_message = update_user_in_tenant(_api, first_name, last_name, email, merged_roles, merged_group_names)
                 else:
                     result_message = f"User '{email}' already exists with the correct settings. No update needed."
             else:
