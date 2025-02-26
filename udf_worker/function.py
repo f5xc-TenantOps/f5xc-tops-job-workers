@@ -136,8 +136,9 @@ def process_insert(record: dict):
 
         # ✅ Step 1: Fetch tenant URL from SSM, update deployment state
         try:
-            ssm_params = get_parameters([ssm_base_path + "/tenant_url"])
-            tenant_url = ssm_params.get("tenant_url")
+            region = boto3.session.Session().region_name
+            params = get_parameters([f"{ssm_base_path}/tenant-url"], region_name=region,)
+            tenant_url = params.get("tenant_url")
         except Exception as e:
             raise RuntimeError(f"Failed to fetch tenant URL: {e}") from e
  
