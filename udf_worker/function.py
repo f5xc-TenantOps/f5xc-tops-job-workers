@@ -59,12 +59,26 @@ def get_lab_info(lab_id: str) -> dict:
     except Exception as e:
         raise RuntimeError(f"Failed to fetch lab info from DynamoDB: {e}") from e
 
-
+def get_parameters(parameters: list, region_name: str = "us-east-1") -> dict:
+    """
+    Fetch parameters from AWS Parameter Store.
+    """
+    try:
+        aws = boto3.session.Session()
+        ssm = aws.client("ssm", region_name=region_name)
+        response = ssm.get_parameters(Names=parameters, WithDecryption=True)
+        return {param["Name"].split("/")[-1]: param["Value"] for param in response["Parameters"]}
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch parameters: {e}") from e
+    
 def update_deployment_state(dep_id: str, updates: dict):
     """Update multiple fields in the deployment state in DynamoDB."""
     try:
         update_expression = "SET " + ", ".join([f"#{k} = :{k}" for k in updates.keys()])
-        expression_values = {f":{k}": {"S" if isinstance(v, str) else "BOOL": v} for k, v in updates.items()}
+        expression_values = {
+            f":{k}": {("S" if isinstance(v, str) else "BOOL" if isinstance(v, bool) else "N"): str(v)}
+            for k, v in updates.items()
+        }
         expression_names = {f"#{k}": k for k in updates.keys()}
 
         dynamodb.update_item(
@@ -77,6 +91,23 @@ def update_deployment_state(dep_id: str, updates: dict):
     except Exception as e:
         raise RuntimeError(f"Failed to update deployment state in DynamoDB: {e}") from e
 
+def check_existing_user_in_tenant(email: str, tenant_url: str) -> bool:
+    """
+    Check if another active deployment exists for the same user in the same tenant.
+    Returns True if another active record is found.
+    """
+    try:
+        response = dynamodb.scan(
+            TableName=DEPLOYMENT_STATE_TABLE,
+            FilterExpression="email = :email AND tenant_url = :tenant",
+            ExpressionAttributeValues={
+                ":email": {"S": email},
+                ":tenant": {"S": tenant_url}
+            }
+        )
+        return bool(response.get("Items")) 
+    except Exception as e:
+        raise RuntimeError(f"Error checking existing deployments: {e}") from e
 
 def process_insert(record: dict):
     """Handle a new record INSERT event from the DynamoDB stream."""
@@ -103,7 +134,17 @@ def process_insert(record: dict):
         user_ns = lab_info["user_ns"]
         pre_lambda = lab_info.get("pre_lambda")
 
-        # Step 1: Create Namespace (if applicable)
+        # ✅ Step 1: Fetch tenant URL from SSM, update deployment state
+        try:
+            region = boto3.session.Session().region_name
+            params = get_parameters([f"{ssm_base_path}/tenant-url"], region_name=region)
+            tenant_url = params.get("tenant-url")
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch tenant URL: {e}") from e
+ 
+        update_deployment_state(dep_id, {"tenant_url": tenant_url})
+
+        # ✅ Step 2: Create Namespace (if applicable)
         if user_ns:
             namespace_payload = {
                 "ssm_base_path": ssm_base_path,
@@ -118,8 +159,10 @@ def process_insert(record: dict):
                 namespace_roles.append({"namespace": petname, "role": "ves-io-admin-role"})
             else:
                 update_deployment_state(dep_id, {"create_namespace": "FAILED"})
+        else:
+            update_deployment_state(dep_id, {"create_namespace": "NA"})
 
-        # Step 2: Create User
+        # ✅ Step 3: Create User
         user_payload = {
             "ssm_base_path": ssm_base_path,
             "first_name": "Lab User",
@@ -136,7 +179,7 @@ def process_insert(record: dict):
         else:
             update_deployment_state(dep_id, {"create_user": "FAILED"})
 
-        # ✅ Step 3: Execute Pre-Lambda (if defined)
+        # ✅ Step 4: Execute Pre-Lambda (if defined)
         if pre_lambda:
             update_deployment_state(dep_id, {"pre_lambda": "IN_PROGRESS"})
             pre_lambda_payload = {
@@ -150,6 +193,8 @@ def process_insert(record: dict):
                 update_deployment_state(dep_id, {"pre_lambda": "SUCCESS"})
             else:
                 update_deployment_state(dep_id, {"pre_lambda": "FAILED"})
+        else:
+            update_deployment_state(dep_id, {"pre_lambda": "NA"})
 
         update_deployment_state(dep_id, {"deployment_status": "COMPLETED"})
 
@@ -167,6 +212,7 @@ def process_remove(record: dict):
         lab_id = old_image["lab_id"]["S"]
         petname = old_image["petname"]["S"]
         email = old_image["email"]["S"]
+        tenant_url = old_image.get("tenant_url", {}).get("S")
         create_namespace = old_image.get("create_namespace", {}).get("S")
         create_user = old_image.get("create_user", {}).get("S")
 
@@ -175,7 +221,25 @@ def process_remove(record: dict):
         ssm_base_path = lab_info["ssm_base_path"]
         post_lambda = lab_info.get("post_lambda")
 
-        # Step 1: Remove Namespace if it was successfully created
+        # ✅ Check if another deployment exists for this user in the same tenant
+        if check_existing_user_in_tenant(email, tenant_url):
+            print(f"Skipping user removal: Another active deployment exists for {email} in {tenant_url}")
+        else:
+            # Step 1: Remove User if it was successfully created
+            if create_user == "SUCCESS":
+                if not USER_REMOVE_LAMBDA:
+                    raise RuntimeError("USER_REMOVE_LAMBDA environment variable is missing.")
+
+                user_payload = {
+                    "ssm_base_path": ssm_base_path,
+                    "email": email
+                }
+
+                user_remove_response = invoke_lambda(USER_REMOVE_LAMBDA, user_payload)
+                if user_remove_response.get("statusCode") != 200:
+                    print(f"Warning: User removal failed for {email}")
+
+        # Step 2: Remove Namespace if it was successfully created
         if create_namespace == "SUCCESS":
             if not NS_REMOVE_LAMBDA:
                 raise RuntimeError("NS_REMOVE_LAMBDA environment variable is missing.")
@@ -188,20 +252,6 @@ def process_remove(record: dict):
             ns_remove_response = invoke_lambda(NS_REMOVE_LAMBDA, namespace_payload)
             if ns_remove_response.get("statusCode") != 200:
                 print(f"Warning: Namespace removal failed for {petname}")
-
-        # Step 2: Remove User if it was successfully created
-        if create_user == "SUCCESS":
-            if not USER_REMOVE_LAMBDA:
-                raise RuntimeError("USER_REMOVE_LAMBDA environment variable is missing.")
-
-            user_payload = {
-                "ssm_base_path": ssm_base_path,
-                "email": email
-            }
-
-            user_remove_response = invoke_lambda(USER_REMOVE_LAMBDA, user_payload)
-            if user_remove_response.get("statusCode") != 200:
-                print(f"Warning: User removal failed for {email}")
 
         # Step 3: Execute Post-Lambda (if defined)
         if post_lambda:
