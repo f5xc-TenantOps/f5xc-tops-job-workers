@@ -4,6 +4,10 @@ import time
 from datetime import datetime
 import boto3
 
+from shared.logging import StructuredLogger
+from shared.errors import PermanentError, TransientError
+from shared.decorators import lambda_handler, extract_correlation_id
+
 # AWS Clients
 dynamodb = boto3.client("dynamodb")
 
@@ -14,35 +18,46 @@ TTL_EXTENSION_SECONDS = 300
 if not DEPLOYMENT_TABLE:
     raise ValueError("DEPLOYMENT_STATE_TABLE environment variable is not set.")
 
-def validate_message(message: dict):
+
+def validate_message(message: dict, logger: StructuredLogger):
     """
     Validate that required fields exist in the SQS message.
     """
+    step_logger = logger.with_step("validate_message")
     required_fields = ["dep_id", "lab_id", "email", "petname"]
     missing_fields = [field for field in required_fields if field not in message]
 
     if missing_fields:
-        raise ValueError(f"Missing required fields in message: {', '.join(missing_fields)}")
+        step_logger.error("Missing required fields", missing_fields=missing_fields)
+        raise PermanentError(f"Missing required fields in message: {', '.join(missing_fields)}")
+
+    step_logger.info("Message validated successfully", dep_id=message.get("dep_id"))
 
 
-def check_existing_deployment(dep_id: str):
+def check_existing_deployment(dep_id: str, logger: StructuredLogger):
     """
     Check if a dep_id (deployment_id) already exists in DynamoDB.
     """
+    step_logger = logger.with_step("check_deployment")
     try:
+        step_logger.info("Checking for existing deployment", dep_id=dep_id)
         response = dynamodb.get_item(
             TableName=DEPLOYMENT_TABLE,
             Key={"dep_id": {"S": dep_id}}
         )
+        exists = response.get("Item") is not None
+        step_logger.info("Deployment check complete", dep_id=dep_id, exists=exists)
         return response.get("Item")
     except Exception as e:
-        raise RuntimeError(f"Error checking existing deployment: {e}") from e
+        step_logger.error("DynamoDB get_item failed", dep_id=dep_id, error=str(e))
+        raise TransientError(f"Error checking existing deployment: {e}") from e
 
 
-def extend_ttl(dep_id: str):
+def extend_ttl(dep_id: str, logger: StructuredLogger):
     """
     Extend the TTL of an existing deployment to always be 5 minutes from the current time.
     """
+    step_logger = logger.with_step("extend_ttl")
     try:
         new_expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS
         human_readable_expiration = datetime.utcfromtimestamp(new_expiration_time).strftime('%Y-%m-%d %H:%M:%S UTC')
@@ -65,15 +80,18 @@ def extend_ttl(dep_id: str):
             ExpressionAttributeNames=expression_names,
             ExpressionAttributeValues=expression_values
         )
+        step_logger.info("TTL extended successfully", dep_id=dep_id, new_expiration=human_readable_expiration)
         return f"TTL updated to 5 minutes from now for deployment {dep_id}"
     except Exception as e:
-        raise RuntimeError(f"Failed to update TTL: {e}") from e
+        step_logger.error("Failed to extend TTL", dep_id=dep_id, error=str(e))
+        raise TransientError(f"Failed to update TTL: {e}") from e
 
 
-def insert_into_dynamodb(message: dict):
+def insert_into_dynamodb(message: dict, logger: StructuredLogger):
     """
     Insert the processed message into DynamoDB as a new deployment with a TTL of 5 minutes from now.
     """
+    step_logger = logger.with_step("insert_deployment")
     expiration_time = int(time.time()) + TTL_EXTENSION_SECONDS
 
     item = {
@@ -87,47 +105,41 @@ def insert_into_dynamodb(message: dict):
     }
 
     try:
+        step_logger.info("Inserting new deployment", dep_id=message["dep_id"])
         dynamodb.put_item(
             TableName=DEPLOYMENT_TABLE,
             Item=item
         )
+        step_logger.info("Deployment inserted successfully", dep_id=message["dep_id"])
         return f"Inserted new deployment {message['dep_id']} into {DEPLOYMENT_TABLE}."
     except Exception as e:
-        raise RuntimeError(f"Failed to insert into DynamoDB: {e}") from e
+        step_logger.error("Failed to insert deployment", dep_id=message["dep_id"], error=str(e))
+        raise TransientError(f"Failed to insert into DynamoDB: {e}") from e
 
 
-def main(event: dict):
+@lambda_handler
+def handler(event: dict, context, logger: StructuredLogger) -> dict:
     """
     Process SQS event and insert/update records in DynamoDB.
     """
-    try:
-        for record in event["Records"]:
-            message_body = json.loads(record["body"])
-            validate_message(message_body)
+    step_logger = logger.with_step("process_records")
 
-            dep_id = message_body["dep_id"]
+    for record in event["Records"]:
+        message_body = json.loads(record["body"])
+        validate_message(message_body, logger)
 
-            existing_item = check_existing_deployment(dep_id)
+        dep_id = message_body["dep_id"]
 
-            if existing_item:
-                result = extend_ttl(dep_id)
-            else:
-                result = insert_into_dynamodb(message_body)
+        existing_item = check_existing_deployment(dep_id, logger)
 
-            print(result)
+        if existing_item:
+            result = extend_ttl(dep_id, logger)
+        else:
+            result = insert_into_dynamodb(message_body, logger)
 
-        return {"statusCode": 200, "body": "Processed SQS messages successfully"}
+        step_logger.info("Record processed", dep_id=dep_id, result=result)
 
-    except Exception as e:
-        print(f"Error: {e}")
-        return {"statusCode": 500, "body": f"Error processing SQS messages: {e}"}
-
-
-def lambda_handler(event, context):
-    """
-    AWS Lambda entry point.
-    """
-    return main(event)
+    return "Processed SQS messages successfully"
 
 
 if __name__ == "__main__":
@@ -144,4 +156,8 @@ if __name__ == "__main__":
             }
         ]
     }
-    main(test_event)
+
+    class MockContext:
+        function_name = "udf_dispatch"
+
+    handler(test_event, MockContext())
