@@ -1,6 +1,13 @@
-import time
-import boto3
+"""Clean expired deployments from DynamoDB."""
+
 import os
+import time
+
+import boto3
+
+from shared.decorators import lambda_handler
+from shared.errors import PermanentError, TransientError
+from shared.logging import StructuredLogger
 
 # AWS Clients
 dynamodb = boto3.client("dynamodb")
@@ -12,61 +19,62 @@ if not DEPLOYMENT_TABLE:
     raise ValueError("DEPLOYMENT_STATE_TABLE environment variable is not set.")
 
 
-def get_expired_entries():
-    """
-    Scan the DynamoDB table and retrieve entries where the TTL has expired.
-    """
+def get_expired_entries(logger: StructuredLogger) -> list:
+    """Scan the DynamoDB table and retrieve entries where the TTL has expired."""
+    step_logger = logger.with_step("get_expired_entries")
     current_time = int(time.time())
 
     try:
         response = dynamodb.scan(
             TableName=DEPLOYMENT_TABLE,
             FilterExpression="#ttl_attr < :now",
-            ExpressionAttributeNames={"#ttl_attr": "ttl"},  # Alias for reserved keyword
-            ExpressionAttributeValues={":now": {"N": str(current_time)}}
+            ExpressionAttributeNames={"#ttl_attr": "ttl"},
+            ExpressionAttributeValues={":now": {"N": str(current_time)}},
         )
-
-        return response.get("Items", [])
+        items = response.get("Items", [])
+        step_logger.info("Scanned for expired entries", count=len(items))
+        return items
     except Exception as e:
-        raise RuntimeError(f"Error scanning for expired entries: {e}") from e
+        step_logger.error("Failed to scan for expired entries", error=str(e))
+        raise TransientError(f"Error scanning for expired entries: {e}") from e
 
 
-def delete_expired_entries():
-    """
-    Find and delete all expired entries from the DynamoDB table.
-    """
-    expired_items = get_expired_entries()
-    
+def delete_expired_entries(logger: StructuredLogger) -> str:
+    """Find and delete all expired entries from the DynamoDB table."""
+    step_logger = logger.with_step("delete_expired_entries")
+    expired_items = get_expired_entries(logger)
+
     if not expired_items:
+        step_logger.info("No expired entries found")
         return "No expired entries found."
 
     deleted_count = 0
     for item in expired_items:
+        dep_id = item["dep_id"]["S"]
         try:
             dynamodb.delete_item(
-                TableName=DEPLOYMENT_TABLE,
-                Key={"dep_id": item["dep_id"]}
+                TableName=DEPLOYMENT_TABLE, Key={"dep_id": item["dep_id"]}
             )
             deleted_count += 1
+            step_logger.info("Deleted expired entry", dep_id=dep_id)
         except Exception as e:
-            print(f"Failed to delete expired entry {item['dep_id']['S']}: {e}")
+            step_logger.error("Failed to delete expired entry", dep_id=dep_id, error=str(e))
 
-    return f"Deleted {deleted_count} expired entries from {DEPLOYMENT_TABLE}."
+    result = f"Deleted {deleted_count} expired entries from {DEPLOYMENT_TABLE}."
+    step_logger.info("Cleanup complete", deleted_count=deleted_count)
+    return result
 
 
-def lambda_handler(event, context):
-    """
-    AWS Lambda entry point for cleaning expired deployments.
-    """
-    try:
-        result = delete_expired_entries()
-        print(result)
-        return {"statusCode": 200, "body": result}
-    except Exception as e:
-        print(f"Error: {e}")
-        return {"statusCode": 500, "body": f"Error deleting expired entries: {e}"}
+@lambda_handler
+def handler(event, context, logger: StructuredLogger):
+    """AWS Lambda entry point for cleaning expired deployments."""
+    result = delete_expired_entries(logger)
+    return result
 
 
 if __name__ == "__main__":
     # Local testing
-    print(delete_expired_entries())
+    class MockContext:
+        function_name = "udf_clean"
+
+    handler({}, MockContext())
