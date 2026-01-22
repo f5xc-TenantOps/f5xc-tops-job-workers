@@ -35,6 +35,7 @@ from .dependency_graph import (
 )
 from .logging import StructuredLogger
 from .ssm import get_ssm_parameters
+from .xc_client import XCClient
 from .xc_operations import create_resource, delete_resource
 
 __all__ = [
@@ -57,6 +58,8 @@ __all__ = [
     "delete_resource",
     # SSM
     "get_ssm_parameters",
+    # XC Client
+    "XCClient",
     # Job Config
     "JobConfig",
     "UserConfig",
