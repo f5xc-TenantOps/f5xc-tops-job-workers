@@ -281,3 +281,138 @@ def test_create_origin_pool():
         call_args = mock_session.post.call_args
         assert "/api/config/namespaces/ns1/origin_pools" in call_args[0][0]
         assert call_args[1]["json"] == payload
+
+
+def test_xc_client_raises_transient_after_max_retries():
+    """XCClient raises TransientError after max retries exhausted."""
+    from shared.xc_client import XCClient
+    from shared.errors import TransientError
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        with patch('shared.xc_client.time.sleep'):
+            mock_session = MagicMock()
+            mock_session_class.return_value = mock_session
+
+            whoami_response = MagicMock()
+            whoami_response.status_code = 200
+            whoami_response.json.return_value = {"user": "test"}
+
+            # All attempts fail with 503
+            fail_response = MagicMock()
+            fail_response.status_code = 503
+            fail_response.text = "Service Unavailable"
+
+            mock_session.get.side_effect = [whoami_response, fail_response, fail_response, fail_response]
+
+            client = XCClient("https://test.console.ves.volterra.io", "token")
+
+            with pytest.raises(TransientError):
+                client.get("/api/test")
+
+
+def test_xc_client_put_success():
+    """XCClient.put returns response data on success."""
+    from shared.xc_client import XCClient
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        whoami_response = MagicMock()
+        whoami_response.status_code = 200
+        whoami_response.json.return_value = {"user": "test"}
+        mock_session.get.return_value = whoami_response
+
+        put_response = MagicMock()
+        put_response.status_code = 200
+        put_response.json.return_value = {"metadata": {"name": "updated"}}
+        mock_session.put.return_value = put_response
+
+        client = XCClient("https://test.console.ves.volterra.io", "token")
+        result = client.put("/api/test", {"data": "value"})
+
+        assert result == {"metadata": {"name": "updated"}}
+        mock_session.put.assert_called_once()
+
+
+def test_xc_client_delete_success():
+    """XCClient.delete returns response data on success."""
+    from shared.xc_client import XCClient
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        whoami_response = MagicMock()
+        whoami_response.status_code = 200
+        whoami_response.json.return_value = {"user": "test"}
+        mock_session.get.return_value = whoami_response
+
+        delete_response = MagicMock()
+        delete_response.status_code = 200
+        delete_response.json.return_value = {}
+        mock_session.delete.return_value = delete_response
+
+        client = XCClient("https://test.console.ves.volterra.io", "token")
+        result = client.delete("/api/test/resource")
+
+        assert result == {}
+        mock_session.delete.assert_called_once()
+
+
+def test_xc_client_raises_not_found_on_404():
+    """XCClient raises ResourceNotFoundError on 404."""
+    from shared.xc_client import XCClient
+    from shared.errors import ResourceNotFoundError
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        whoami_response = MagicMock()
+        whoami_response.status_code = 200
+        whoami_response.json.return_value = {"user": "test"}
+
+        not_found_response = MagicMock()
+        not_found_response.status_code = 404
+        not_found_response.text = "Not Found"
+        not_found_response.json.return_value = {"message": "Resource not found"}
+
+        mock_session.get.side_effect = [whoami_response, not_found_response]
+
+        client = XCClient("https://test.console.ves.volterra.io", "token")
+
+        with pytest.raises(ResourceNotFoundError):
+            client.get("/api/test/missing")
+
+
+def test_xc_client_retries_on_network_error():
+    """XCClient retries on network errors."""
+    from shared.xc_client import XCClient
+    import requests.exceptions
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        with patch('shared.xc_client.time.sleep'):
+            mock_session = MagicMock()
+            mock_session_class.return_value = mock_session
+
+            whoami_response = MagicMock()
+            whoami_response.status_code = 200
+            whoami_response.json.return_value = {"user": "test"}
+
+            success_response = MagicMock()
+            success_response.status_code = 200
+            success_response.json.return_value = {"ok": True}
+
+            # First call succeeds (whoami), second fails with network error, third succeeds
+            mock_session.get.side_effect = [
+                whoami_response,
+                requests.exceptions.ConnectionError("Connection refused"),
+                success_response
+            ]
+
+            client = XCClient("https://test.console.ves.volterra.io", "token")
+            result = client.get("/api/test")
+
+            assert result == {"ok": True}
+            assert mock_session.get.call_count == 3

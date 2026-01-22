@@ -10,7 +10,9 @@ from urllib.parse import urlparse
 
 import requests
 
-from .errors import PermanentError, TransientError, RateLimitError, ResourceExistsError
+from .errors import PermanentError, TransientError, RateLimitError, ResourceExistsError, ResourceNotFoundError
+
+__all__ = ["XCClient"]
 
 
 class XCClient:
@@ -22,7 +24,8 @@ class XCClient:
         api_token: str,
         validate: bool = True,
         max_retries: int = 3,
-        backoff_base: float = 2.0
+        backoff_base: float = 2.0,
+        timeout: tuple = (10, 30)
     ):
         """Initialize XC client.
 
@@ -32,11 +35,13 @@ class XCClient:
             validate: Whether to validate the session on init
             max_retries: Maximum retry attempts for transient errors
             backoff_base: Base for exponential backoff
+            timeout: Request timeout as (connect_timeout, read_timeout) in seconds
         """
         self._tenant_url = self._validate_url(tenant_url)
         self._api_token = api_token
         self._max_retries = max_retries
         self._backoff_base = backoff_base
+        self._timeout = timeout
 
         self._session = requests.Session()
         self._session.headers.update({
@@ -93,24 +98,27 @@ class XCClient:
         for attempt in range(self._max_retries):
             try:
                 if method == "GET":
-                    response = self._session.get(url)
+                    response = self._session.get(url, timeout=self._timeout)
                 elif method == "POST":
-                    response = self._session.post(url, json=payload)
+                    response = self._session.post(url, json=payload, timeout=self._timeout)
                 elif method == "PUT":
-                    response = self._session.put(url, json=payload)
+                    response = self._session.put(url, json=payload, timeout=self._timeout)
                 elif method == "DELETE":
-                    response = self._session.delete(url, json=payload)
+                    response = self._session.delete(url, json=payload, timeout=self._timeout)
                 else:
                     raise ValueError(f"Unsupported method: {method}")
 
                 return self._handle_response(response, attempt)
 
+            except requests.exceptions.RequestException as e:
+                if attempt == self._max_retries - 1:
+                    raise TransientError(f"Network error: {e}") from e
+                time.sleep(self._backoff_base ** attempt)
+
             except (TransientError, RateLimitError):
                 if attempt == self._max_retries - 1:
                     raise
                 # Sleep handled in _handle_response for rate limits
-
-        raise TransientError(f"Request failed after {self._max_retries} attempts")
 
     def _handle_response(self, response: requests.Response, attempt: int) -> Dict[str, Any]:
         """Handle HTTP response with error classification.
@@ -149,6 +157,10 @@ class XCClient:
             retry_after = int(response.headers.get("Retry-After", 30))
             time.sleep(retry_after)
             raise RateLimitError(message, retry_after=retry_after)
+
+        # Not found
+        if status == 404:
+            raise ResourceNotFoundError(message)
 
         # Conflict - resource exists
         if status == 409:
