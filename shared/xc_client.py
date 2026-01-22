@@ -180,3 +180,196 @@ class XCClient:
     def delete(self, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """HTTP DELETE request."""
         return self._request("DELETE", path, payload)
+
+    # --- Namespace Operations ---
+
+    def create_namespace(self, name: str, description: str = "") -> Dict[str, Any]:
+        """Create a namespace."""
+        payload = {
+            "metadata": {
+                "name": name,
+                "description": description,
+                "annotations": {},
+                "labels": {},
+                "disable": False,
+                "namespace": ""
+            },
+            "spec": {}
+        }
+        return self.post("/api/web/namespaces", payload)
+
+    def get_namespace(self, name: str) -> Dict[str, Any]:
+        """Get a namespace."""
+        return self.get(f"/api/web/namespaces/{name}")
+
+    def delete_namespace(self, name: str) -> Dict[str, Any]:
+        """Delete a namespace (cascade)."""
+        return self.post(f"/api/web/namespaces/{name}/cascade_delete", {"name": name})
+
+    # --- User Operations ---
+
+    def create_user(
+        self,
+        email: str,
+        first_name: str,
+        last_name: str,
+        group_names: list = None,
+        namespace_roles: list = None
+    ) -> Dict[str, Any]:
+        """Create a user."""
+        payload = {
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "name": email,
+            "namespace": "system",
+            "group_names": group_names or [],
+            "namespace_roles": namespace_roles or [],
+            "idm_type": "SSO",
+            "type": "USER"
+        }
+        return self.post("/api/web/custom/namespaces/system/user_roles", payload)
+
+    def delete_user(self, email: str) -> Dict[str, Any]:
+        """Delete a user."""
+        payload = {"email": email, "namespace": "system"}
+        return self.post("/api/web/custom/namespaces/system/users/cascade_delete", payload)
+
+    def update_user(
+        self,
+        email: str,
+        first_name: str,
+        last_name: str,
+        namespace_roles: list,
+        group_names: list
+    ) -> Dict[str, Any]:
+        """Update a user."""
+        payload = {
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "namespace": "system",
+            "namespace_roles": namespace_roles,
+            "group_names": group_names
+        }
+        return self.put("/api/web/custom/namespaces/system/user_roles", payload)
+
+    # --- Generic Config Resources (full payload pass-through) ---
+
+    def create_origin_pool(self, namespace: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create an origin pool."""
+        return self.post(f"/api/config/namespaces/{namespace}/origin_pools", payload)
+
+    def get_origin_pool(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Get an origin pool."""
+        return self.get(f"/api/config/namespaces/{namespace}/origin_pools/{name}")
+
+    def delete_origin_pool(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Delete an origin pool."""
+        return self.delete(f"/api/config/namespaces/{namespace}/origin_pools/{name}")
+
+    def create_http_loadbalancer(self, namespace: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create an HTTP load balancer."""
+        return self.post(f"/api/config/namespaces/{namespace}/http_loadbalancers", payload)
+
+    def get_http_loadbalancer(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Get an HTTP load balancer."""
+        return self.get(f"/api/config/namespaces/{namespace}/http_loadbalancers/{name}")
+
+    def delete_http_loadbalancer(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Delete an HTTP load balancer."""
+        return self.delete(f"/api/config/namespaces/{namespace}/http_loadbalancers/{name}")
+
+    def create_tcp_loadbalancer(self, namespace: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a TCP load balancer."""
+        return self.post(f"/api/config/namespaces/{namespace}/tcp_loadbalancers", payload)
+
+    def create_app_firewall(self, namespace: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create an app firewall (WAF policy)."""
+        return self.post(f"/api/config/namespaces/{namespace}/app_firewalls", payload)
+
+    def get_app_firewall(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Get an app firewall."""
+        return self.get(f"/api/config/namespaces/{namespace}/app_firewalls/{name}")
+
+    # --- Certificate Operations ---
+
+    def create_certificate(
+        self,
+        namespace: str,
+        name: str,
+        cert_b64: str,
+        key_b64: str
+    ) -> Dict[str, Any]:
+        """Create a certificate."""
+        payload = {
+            "metadata": {
+                "name": name,
+                "namespace": namespace,
+                "disable": False
+            },
+            "spec": {
+                "certificate_url": f"string:///{cert_b64}",
+                "private_key": {
+                    "clear_secret_info": {
+                        "url": f"string:///{key_b64}"
+                    }
+                }
+            }
+        }
+        return self.post(f"/api/config/namespaces/{namespace}/certificates", payload)
+
+    def replace_certificate(
+        self,
+        namespace: str,
+        name: str,
+        cert_b64: str,
+        key_b64: str
+    ) -> Dict[str, Any]:
+        """Replace a certificate."""
+        payload = {
+            "metadata": {
+                "name": name,
+                "namespace": namespace,
+                "disable": False
+            },
+            "spec": {
+                "certificate_url": f"string:///{cert_b64}",
+                "private_key": {
+                    "clear_secret_info": {
+                        "url": f"string:///{key_b64}"
+                    }
+                }
+            }
+        }
+        return self.put(f"/api/config/namespaces/{namespace}/certificates/{name}", payload)
+
+    # --- Credential Operations ---
+
+    def renew_api_credential(
+        self,
+        name: str,
+        expiration_days: int,
+        namespace: str = "system"
+    ) -> Dict[str, Any]:
+        """Renew an API credential."""
+        payload = {
+            "name": name,
+            "namespace": namespace,
+            "expiration_days": expiration_days
+        }
+        return self.post(f"/api/web/namespaces/{namespace}/renew/api_credentials", payload)
+
+    def renew_service_credential(
+        self,
+        name: str,
+        expiration_days: int,
+        namespace: str = "system"
+    ) -> Dict[str, Any]:
+        """Renew a service credential."""
+        payload = {
+            "name": name,
+            "namespace": namespace,
+            "expiration_days": expiration_days
+        }
+        return self.post(f"/api/web/namespaces/{namespace}/renew/service_credentials", payload)

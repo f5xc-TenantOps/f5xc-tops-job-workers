@@ -222,3 +222,62 @@ def test_xc_client_raises_permanent_on_409_conflict():
 
         with pytest.raises(ResourceExistsError):
             client.post("/api/test", {})
+
+
+def test_create_namespace():
+    """XCClient.create_namespace creates a namespace."""
+    from shared.xc_client import XCClient
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        whoami_response = MagicMock()
+        whoami_response.status_code = 200
+        whoami_response.json.return_value = {"user": "test"}
+        mock_session.get.return_value = whoami_response
+
+        post_response = MagicMock()
+        post_response.status_code = 200
+        post_response.json.return_value = {"metadata": {"name": "test-ns"}}
+        mock_session.post.return_value = post_response
+
+        client = XCClient("https://test.console.ves.volterra.io", "token")
+        result = client.create_namespace("test-ns", "Test namespace")
+
+        # Verify correct endpoint and payload
+        call_args = mock_session.post.call_args
+        assert "/api/web/namespaces" in call_args[0][0]
+        payload = call_args[1]["json"]
+        assert payload["metadata"]["name"] == "test-ns"
+        assert payload["metadata"]["description"] == "Test namespace"
+
+
+def test_create_origin_pool():
+    """XCClient.create_origin_pool creates with full payload."""
+    from shared.xc_client import XCClient
+
+    with patch('shared.xc_client.requests.Session') as mock_session_class:
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        whoami_response = MagicMock()
+        whoami_response.status_code = 200
+        whoami_response.json.return_value = {"user": "test"}
+        mock_session.get.return_value = whoami_response
+
+        post_response = MagicMock()
+        post_response.status_code = 200
+        post_response.json.return_value = {"metadata": {"name": "pool1"}}
+        mock_session.post.return_value = post_response
+
+        client = XCClient("https://test.console.ves.volterra.io", "token")
+        payload = {
+            "metadata": {"name": "pool1", "namespace": "ns1"},
+            "spec": {"port": 80}
+        }
+        result = client.create_origin_pool("ns1", payload)
+
+        call_args = mock_session.post.call_args
+        assert "/api/config/namespaces/ns1/origin_pools" in call_args[0][0]
+        assert call_args[1]["json"] == payload
