@@ -56,6 +56,24 @@ def validate_job_config(config: Dict[str, Any]) -> JobConfig:
         if field_name not in config:
             raise ValueError(f"Missing required field: {field_name}")
 
+    # Validate job_id: alphanumeric with hyphens/underscores only
+    job_id = config["job_id"]
+    if not re.match(r'^[a-zA-Z0-9_-]+$', job_id):
+        raise ValueError(
+            f"Invalid job_id '{job_id}': must contain only alphanumeric characters, hyphens, and underscores"
+        )
+
+    # Validate ssm_base_path: must start with "/" and contain only safe characters
+    ssm_base_path = config["ssm_base_path"]
+    if not ssm_base_path.startswith("/"):
+        raise ValueError(
+            f"Invalid ssm_base_path '{ssm_base_path}': must start with '/'"
+        )
+    if not re.match(r'^[a-zA-Z0-9/_-]+$', ssm_base_path):
+        raise ValueError(
+            f"Invalid ssm_base_path '{ssm_base_path}': must contain only alphanumeric characters, hyphens, underscores, and forward slashes"
+        )
+
     user_config = UserConfig()
     if "user" in config:
         user_data = config["user"]
@@ -99,11 +117,18 @@ def substitute_variables(template: Any, variables: Dict[str, str]) -> Any:
 
     Returns:
         Template with variables substituted.
+
+    Raises:
+        ValueError: If any {{variable}} patterns remain unsubstituted.
     """
     if isinstance(template, str):
         result = template
         for key, value in variables.items():
             result = result.replace(f"{{{{{key}}}}}", str(value))
+        # Check for unsubstituted variables
+        unsubstituted = re.findall(r'\{\{(\w+)\}\}', result)
+        if unsubstituted:
+            raise ValueError(f"Unsubstituted variables: {', '.join(unsubstituted)}")
         return result
     elif isinstance(template, dict):
         return {k: substitute_variables(v, variables) for k, v in template.items()}
@@ -111,3 +136,24 @@ def substitute_variables(template: Any, variables: Dict[str, str]) -> Any:
         return [substitute_variables(item, variables) for item in template]
     else:
         return template
+
+
+def validate_runtime_variables(email: str, petname: str) -> None:
+    """Validate runtime variables for email and petname.
+
+    Args:
+        email: User email address.
+        petname: Unique identifier for the job instance.
+
+    Raises:
+        ValueError: If email or petname format is invalid.
+    """
+    # Validate email: basic @ check
+    if not email or '@' not in email:
+        raise ValueError(f"Invalid email '{email}': must contain '@'")
+
+    # Validate petname: alphanumeric and hyphens only
+    if not petname or not re.match(r'^[a-zA-Z0-9-]+$', petname):
+        raise ValueError(
+            f"Invalid petname '{petname}': must contain only alphanumeric characters and hyphens"
+        )

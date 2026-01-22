@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock, patch
-import json
 
 
 def test_fetch_job_config_from_event():

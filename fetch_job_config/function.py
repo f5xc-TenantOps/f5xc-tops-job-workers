@@ -29,7 +29,7 @@ def parse_dynamodb_item(item: Dict[str, Any]) -> Dict[str, Any]:
         if "S" in v:
             return v["S"]
         elif "N" in v:
-            return float(v["N"])
+            return int(v["N"]) if "." not in v["N"] else float(v["N"])
         elif "BOOL" in v:
             return v["BOOL"]
         elif "L" in v:

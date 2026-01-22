@@ -35,6 +35,24 @@ def _get_parameters(parameters: list, region_name: str = "us-east-1") -> dict:
 
 
 @with_retry(max_attempts=3)
+def _create_origin_pool_with_retry(api, payload: dict, namespace: str) -> None:
+    """Call XC API to create origin pool, with retry on transient failures."""
+    try:
+        api.create(payload=payload, namespace=namespace)
+    except Exception as e:
+        error_msg = str(e).lower()
+        # Don't retry "already exists" errors - they're not transient
+        already_exists_patterns = ["already exist", "already exists", "duplicate", "conflict"]
+        if any(pattern in error_msg for pattern in already_exists_patterns):
+            raise
+        # Check for HTTP 409 Conflict
+        if hasattr(e, 'status_code') and e.status_code == 409:
+            raise
+        if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 409:
+            raise
+        raise TransientError(f"Failed to create origin pool: {e}") from e
+
+
 def create_pool(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, Any]:
     """Create an origin pool in F5 XC.
 
@@ -75,21 +93,33 @@ def create_pool(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     step.info("Creating origin pool", name=name, namespace=namespace)
 
     try:
-        api.create(payload=payload, namespace=namespace)
+        _create_origin_pool_with_retry(api, payload, namespace)
         step.info("Origin pool created", name=name)
         return {"status": "success", "name": name, "created": True}
     except Exception as e:
-        error_msg = str(e)
-        if "already exist" in error_msg.lower():
-            # Check if it actually exists
-            try:
-                api.get(namespace=namespace, name=name)
-                step.info("Origin pool already exists", name=name)
-                return {"status": "success", "name": name, "already_existed": True}
-            except Exception:
-                pass
-        step.error("Failed to create origin pool", error=error_msg)
-        raise TransientError(f"Failed to create origin pool: {e}") from e
+        error_msg = str(e).lower()
+
+        # Check for HTTP 409 Conflict status code
+        is_conflict_status = False
+        if hasattr(e, 'status_code'):
+            is_conflict_status = e.status_code == 409
+        elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+            is_conflict_status = e.response.status_code == 409
+
+        # Check for common "already exists" error message patterns
+        already_exists_patterns = [
+            "already exist",
+            "already exists",
+            "duplicate",
+            "conflict",
+        ]
+        is_already_exists_error = any(pattern in error_msg for pattern in already_exists_patterns)
+
+        if is_conflict_status or is_already_exists_error:
+            step.info("Origin pool already exists", name=name)
+            return {"status": "success", "name": name, "already_existed": True}
+        step.error("Failed to create origin pool", error=str(e))
+        raise
 
 
 @lambda_handler

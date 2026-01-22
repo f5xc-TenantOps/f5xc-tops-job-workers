@@ -20,13 +20,22 @@ lambda_client = None
 # Lambda function name prefix (e.g., "tops-" in prod, "tops-dev-" in dev)
 LAMBDA_PREFIX = os.getenv("LAMBDA_PREFIX", "tops-")
 
+# Timeout for Lambda invoke calls (default 5 minutes)
+LAMBDA_INVOKE_TIMEOUT_SECONDS = int(os.getenv("LAMBDA_INVOKE_TIMEOUT_SECONDS", "300"))
+
 
 def _get_lambda_client():
-    """Get or create the Lambda client."""
+    """Get or create the Lambda client with configured timeout."""
     global lambda_client
     if lambda_client is None:
         import boto3
-        lambda_client = boto3.client("lambda")
+        from botocore.config import Config
+
+        config = Config(
+            read_timeout=LAMBDA_INVOKE_TIMEOUT_SECONDS,
+            connect_timeout=10,
+        )
+        lambda_client = boto3.client("lambda", config=config)
     return lambda_client
 
 
@@ -162,6 +171,7 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
 
     # Execute each level
     results = {}
+    failed_resources = set()
     for level_idx, level in enumerate(levels):
         step.info(f"Executing level {level_idx}", resource_count=len(level))
 
@@ -169,6 +179,23 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
         # For now, we execute sequentially within the lambda
         for resource in level:
             resource_name = resource["metadata"]["name"]
+            depends_on = resource.get("depends_on", [])
+
+            # Check if any dependency failed
+            failed_deps = [dep for dep in depends_on if dep in failed_resources]
+            if failed_deps:
+                step.warn("Skipping resource due to failed dependencies",
+                          resource_name=resource_name,
+                          failed_dependencies=failed_deps)
+                results[resource_name] = {
+                    "status": "failed",
+                    "name": resource_name,
+                    "type": resource["type"],
+                    "error": "dependency failed"
+                }
+                failed_resources.add(resource_name)
+                continue
+
             try:
                 result = execute_resource(resource, ssm_base_path, logger)
                 results[resource_name] = result
@@ -179,6 +206,7 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
                     "type": resource["type"],
                     "error": str(e)
                 }
+                failed_resources.add(resource_name)
                 # Continue with other resources in level, but mark overall as partial
 
     # Check for any failures
