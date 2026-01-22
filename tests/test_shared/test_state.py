@@ -244,3 +244,79 @@ class TestStateManagerHelpers:
             call_args = mock_s3.put_object.call_args
             body = json.loads(call_args.kwargs["Body"])
             assert body["outputs"]["site_token"] == "abc123xyz"
+
+    def test_mark_step_failed_tracks_errors(self):
+        """mark_step_failed updates status and tracks error."""
+        with patch("shared.state.boto3"):
+            manager = StateManager(
+                s3_bucket="test-bucket",
+                dynamodb_table="test-table"
+            )
+
+            job_state = JobState(
+                job_execution_id="exec-123",
+                job_id="job-456",
+                trigger_source="udf",
+                email="user@example.com",
+                petname="fuzzy-cat",
+                dep_id="dep-789",
+                status=JobStatus.IN_PROGRESS,
+            )
+
+            with patch.object(manager, "update_state") as mock_update:
+                manager.mark_step_failed(job_state, "namespace", "Connection timeout")
+
+                assert job_state.steps["namespace"]["status"] == StepStatus.FAILED
+                assert job_state.steps["namespace"]["error"] == "Connection timeout"
+                assert "exec-123" in manager._errors
+                assert "Connection timeout" in manager._errors["exec-123"]
+                mock_update.assert_called()
+
+    def test_mark_job_complete(self):
+        """mark_job_complete updates job status to COMPLETED."""
+        with patch("shared.state.boto3"):
+            manager = StateManager(
+                s3_bucket="test-bucket",
+                dynamodb_table="test-table"
+            )
+
+            job_state = JobState(
+                job_execution_id="exec-123",
+                job_id="job-456",
+                trigger_source="udf",
+                email="user@example.com",
+                petname="fuzzy-cat",
+                dep_id="dep-789",
+                status=JobStatus.IN_PROGRESS,
+            )
+
+            with patch.object(manager, "update_state") as mock_update:
+                manager.mark_job_complete(job_state)
+
+                assert job_state.status == JobStatus.COMPLETED
+                mock_update.assert_called_once()
+
+    def test_mark_job_failed(self):
+        """mark_job_failed updates job status to FAILED with error."""
+        with patch("shared.state.boto3"):
+            manager = StateManager(
+                s3_bucket="test-bucket",
+                dynamodb_table="test-table"
+            )
+
+            job_state = JobState(
+                job_execution_id="exec-123",
+                job_id="job-456",
+                trigger_source="udf",
+                email="user@example.com",
+                petname="fuzzy-cat",
+                dep_id="dep-789",
+                status=JobStatus.IN_PROGRESS,
+            )
+
+            with patch.object(manager, "update_state") as mock_update:
+                manager.mark_job_failed(job_state, "Fatal error occurred")
+
+                assert job_state.status == JobStatus.FAILED
+                assert job_state.error == "Fatal error occurred"
+                mock_update.assert_called_once()
