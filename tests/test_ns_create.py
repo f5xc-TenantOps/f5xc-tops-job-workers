@@ -137,3 +137,49 @@ def test_wait_for_namespace_timeout(mock_sleep, mock_xc_client, mock_get_params)
 
     with pytest.raises(TransientError, match="was not available"):
         wait_for_namespace(mock_client, "test-ns", logger, timeout=1, interval=1)
+
+
+@patch("ns_create.function.StateManager")
+@patch("ns_create.function.get_ssm_parameters")
+@patch("ns_create.function.XCClient")
+def test_state_updates_on_success(mock_xc_client, mock_get_params, mock_state_manager_cls):
+    """Namespace creation updates state on start and completion."""
+    from ns_create.function import handler
+
+    mock_get_params.return_value = {
+        "tenant-url": "https://test.console.ves.volterra.io",
+        "token-value": "test-token"
+    }
+    mock_client = MagicMock()
+    mock_xc_client.return_value = mock_client
+    mock_client.get_namespace.return_value = {"name": "test-ns"}
+
+    mock_state_manager = MagicMock()
+    mock_state_manager_cls.return_value = mock_state_manager
+
+    class MockContext:
+        function_name = "ns_create"
+
+    event = {
+        "ssm_base_path": "/test",
+        "namespace_name": "test-ns",
+        "job_state": {
+            "job_execution_id": "exec-123",
+            "job_id": "job-456",
+            "trigger_source": "udf",
+            "email": "user@test.com",
+            "petname": "test-ns",
+            "dep_id": "dep-789",
+            "status": "IN_PROGRESS",
+            "steps": {},
+            "resources": {},
+        },
+        "lab_id": "lab-001",
+    }
+
+    result = handler(event, MockContext())
+
+    assert result["statusCode"] == 200
+    # Verify state was updated
+    mock_state_manager.mark_step_started.assert_called_once()
+    mock_state_manager.mark_step_complete.assert_called_once()

@@ -2,11 +2,14 @@
 Create a namespace in an F5 XC tenant and verify its availability.
 """
 import time
+from typing import Optional
 
 from shared.decorators import lambda_handler
 from shared.errors import PermanentError, ResourceExistsError, TransientError
+from shared.job_state import JobState, JobStatus, StepStatus
 from shared.logging import StructuredLogger
 from shared.ssm import get_ssm_parameters
+from shared.state import StateManager
 from shared.xc_client import XCClient
 
 
@@ -19,6 +22,25 @@ def validate_payload(payload: dict):
 
     if missing_fields:
         raise PermanentError(f"Missing required fields in payload: {', '.join(missing_fields)}")
+
+
+def _get_job_state_from_event(event: dict) -> Optional[JobState]:
+    """Extract JobState from event if present."""
+    job_state_data = event.get("job_state")
+    if not job_state_data:
+        return None
+
+    return JobState(
+        job_execution_id=job_state_data["job_execution_id"],
+        job_id=job_state_data["job_id"],
+        trigger_source=job_state_data["trigger_source"],
+        email=job_state_data["email"],
+        petname=job_state_data["petname"],
+        status=JobStatus(job_state_data.get("status", "IN_PROGRESS")),
+        dep_id=job_state_data.get("dep_id"),
+        steps=job_state_data.get("steps", {}),
+        resources=job_state_data.get("resources", {}),
+    )
 
 
 def wait_for_namespace(client: XCClient, namespace_name: str, logger: StructuredLogger, timeout: int = 20, interval: int = 5) -> str:
@@ -45,47 +67,67 @@ def wait_for_namespace(client: XCClient, namespace_name: str, logger: Structured
 
 @lambda_handler
 def handler(event: dict, context, logger: StructuredLogger):
-    """
-    Main handler to process the payload, create a namespace, and verify its availability.
-    """
+    """Main handler to process the payload, create a namespace, and verify its availability."""
     validate_payload(event)
 
     ssm_base_path = event["ssm_base_path"]
     namespace_name = event["namespace_name"]
     description = event.get("description", "")
+    lab_id = event.get("lab_id")
 
-    # Fetch parameters
-    fetch_logger = logger.with_step("fetch_parameters")
-    fetch_logger.info("Fetching SSM parameters", ssm_base_path=ssm_base_path)
+    # Get job state for state updates
+    job_state = _get_job_state_from_event(event)
+    state_manager = StateManager() if job_state else None
 
-    params = get_ssm_parameters([
-        f"{ssm_base_path}/tenant-url",
-        f"{ssm_base_path}/token-value"
-    ])
-    fetch_logger.info("Parameters fetched successfully")
+    # Mark step started
+    if state_manager and job_state:
+        state_manager.mark_step_started(job_state, "namespace", lab_id=lab_id)
 
-    # Initialize XC client
-    client = XCClient(
-        tenant_url=params["tenant-url"],
-        api_token=params["token-value"],
-        validate=False
-    )
-
-    # Create namespace
-    step_logger = logger.with_step("create_namespace")
     try:
-        step_logger.info("Creating namespace", namespace=namespace_name)
-        client.create_namespace(namespace_name, description)
-        step_logger.info("Namespace created", namespace=namespace_name)
-        create_result = f"Namespace '{namespace_name}' created successfully."
-    except ResourceExistsError:
-        step_logger.info("Namespace already exists", namespace=namespace_name)
-        create_result = f"Namespace '{namespace_name}' already exists."
+        # Fetch parameters
+        fetch_logger = logger.with_step("fetch_parameters")
+        fetch_logger.info("Fetching SSM parameters", ssm_base_path=ssm_base_path)
 
-    # Wait for the namespace to be available
-    wait_result = wait_for_namespace(client, namespace_name, logger)
+        params = get_ssm_parameters([
+            f"{ssm_base_path}/tenant-url",
+            f"{ssm_base_path}/token-value"
+        ])
+        fetch_logger.info("Parameters fetched successfully")
 
-    return f"{create_result} | {wait_result}"
+        # Initialize XC client
+        client = XCClient(
+            tenant_url=params["tenant-url"],
+            api_token=params["token-value"],
+            validate=False
+        )
+
+        # Create namespace
+        step_logger = logger.with_step("create_namespace")
+        try:
+            step_logger.info("Creating namespace", namespace=namespace_name)
+            client.create_namespace(namespace_name, description)
+            step_logger.info("Namespace created", namespace=namespace_name)
+            create_result = f"Namespace '{namespace_name}' created successfully."
+        except ResourceExistsError:
+            step_logger.info("Namespace already exists", namespace=namespace_name)
+            create_result = f"Namespace '{namespace_name}' already exists."
+
+        # Wait for the namespace to be available
+        wait_result = wait_for_namespace(client, namespace_name, logger)
+
+        # Mark step complete
+        if state_manager and job_state:
+            state_manager.mark_step_complete(
+                job_state, "namespace", StepStatus.SUCCESS, lab_id=lab_id, name=namespace_name
+            )
+
+        return f"{create_result} | {wait_result}"
+
+    except Exception as e:
+        # Mark step failed
+        if state_manager and job_state:
+            state_manager.mark_step_failed(job_state, "namespace", str(e), lab_id=lab_id)
+        raise
 
 
 # Keep lambda_handler as the entry point for AWS Lambda

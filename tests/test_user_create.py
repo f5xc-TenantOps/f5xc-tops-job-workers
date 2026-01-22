@@ -318,3 +318,50 @@ def test_merge_namespace_roles_empty_inputs():
     existing = [{"namespace": "system", "role": "admin"}]
     merged = merge_namespace_roles(existing, [])
     assert len(merged) == 1
+
+
+@patch("user_create.function.StateManager")
+@patch("user_create.function.get_ssm_parameters")
+@patch("user_create.function.XCClient")
+def test_state_updates_on_success(mock_xc_client_class, mock_get_params, mock_state_manager_cls):
+    """User creation updates state on start and completion."""
+    from user_create.function import handler
+
+    mock_get_params.return_value = {
+        "tenant-url": "https://test.console.ves.volterra.io",
+        "token-value": "test-token"
+    }
+    mock_client = MagicMock()
+    mock_xc_client_class.return_value = mock_client
+
+    mock_state_manager = MagicMock()
+    mock_state_manager_cls.return_value = mock_state_manager
+
+    class MockContext:
+        function_name = "user_create"
+
+    event = {
+        "ssm_base_path": "/test",
+        "first_name": "Test",
+        "last_name": "User",
+        "email": "user@test.com",
+        "job_state": {
+            "job_execution_id": "exec-123",
+            "job_id": "job-456",
+            "trigger_source": "udf",
+            "email": "user@test.com",
+            "petname": "test-ns",
+            "dep_id": "dep-789",
+            "status": "IN_PROGRESS",
+            "steps": {},
+            "resources": {},
+        },
+        "lab_id": "lab-001",
+    }
+
+    result = handler(event, MockContext())
+
+    assert result["statusCode"] == 200
+    # Verify state was updated
+    mock_state_manager.mark_step_started.assert_called_once()
+    mock_state_manager.mark_step_complete.assert_called_once()
