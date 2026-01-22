@@ -15,6 +15,7 @@ from .errors import (
     ResourceExistsError,
     ResourceNotFoundError,
     TransientError,
+    is_already_exists_error,
 )
 from .job_config import (
     JobConfig,
@@ -33,6 +34,7 @@ from .dependency_graph import (
     InvalidResourceError,
 )
 from .logging import StructuredLogger
+from .ssm import get_ssm_parameters
 from .xc_operations import create_resource, delete_resource
 
 __all__ = [
@@ -45,6 +47,7 @@ __all__ = [
     "AmbiguousError",
     "ResourceNotFoundError",
     "ResourceExistsError",
+    "is_already_exists_error",
     # Decorators
     "with_retry",
     "lambda_handler",
@@ -52,6 +55,8 @@ __all__ = [
     # Operations
     "create_resource",
     "delete_resource",
+    # SSM
+    "get_ssm_parameters",
     # Job Config
     "JobConfig",
     "UserConfig",

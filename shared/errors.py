@@ -66,3 +66,29 @@ class ResourceExistsError(Exception):
     """
 
     pass
+
+
+def is_already_exists_error(exception: Exception) -> bool:
+    """Check if an exception indicates the resource already exists.
+
+    Checks for:
+    - Common error message patterns ("already exist", "duplicate", "conflict")
+    - HTTP 409 status code via exception.status_code
+    - HTTP 409 status code via exception.response.status_code
+
+    Args:
+        exception: The exception to check.
+
+    Returns:
+        True if the exception indicates the resource already exists.
+    """
+    error_msg = str(exception).lower()
+    patterns = ["already exist", "already exists", "duplicate", "conflict"]
+    if any(pattern in error_msg for pattern in patterns):
+        return True
+    if getattr(exception, 'status_code', None) == 409:
+        return True
+    response = getattr(exception, 'response', None)
+    if response is not None and getattr(response, 'status_code', None) == 409:
+        return True
+    return False

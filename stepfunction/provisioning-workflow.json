@@ -1,0 +1,168 @@
+{
+  "Comment": "TenantOps General Provisioning Workflow",
+  "StartAt": "FetchJobConfig",
+  "States": {
+    "FetchJobConfig": {
+      "Type": "Task",
+      "Resource": "${FetchJobConfigLambdaArn}",
+      "ResultPath": "$",
+      "Next": "InitializeJobState",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ]
+    },
+    "InitializeJobState": {
+      "Type": "Pass",
+      "Parameters": {
+        "job_config.$": "$.job_config",
+        "variables.$": "$.variables",
+        "email.$": "$.email",
+        "petname.$": "$.petname",
+        "ssm_base_path.$": "$.ssm_base_path",
+        "job_execution_id.$": "$$.Execution.Name",
+        "status": "IN_PROGRESS"
+      },
+      "Next": "CheckNamespace"
+    },
+    "CheckNamespace": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.job_config.namespace.enabled",
+          "BooleanEquals": true,
+          "Next": "CreateNamespace"
+        }
+      ],
+      "Default": "CheckUser"
+    },
+    "CreateNamespace": {
+      "Type": "Task",
+      "Resource": "${NsCreateLambdaArn}",
+      "Parameters": {
+        "ssm_base_path.$": "$.ssm_base_path",
+        "namespace_name.$": "$.petname",
+        "description.$": "States.Format('Namespace for job {}', $.job_execution_id)"
+      },
+      "ResultPath": "$.namespace_result",
+      "Next": "CheckUser",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.namespace_error",
+          "Next": "CheckUser"
+        }
+      ]
+    },
+    "CheckUser": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.job_config.user.enabled",
+          "BooleanEquals": true,
+          "Next": "CreateUser"
+        }
+      ],
+      "Default": "CheckResources"
+    },
+    "CreateUser": {
+      "Type": "Task",
+      "Resource": "${UserCreateLambdaArn}",
+      "Parameters": {
+        "ssm_base_path.$": "$.ssm_base_path",
+        "first_name": "Lab User",
+        "last_name.$": "$.petname",
+        "email.$": "$.email",
+        "group_names.$": "$.job_config.user.group_names",
+        "namespace_roles.$": "$.job_config.user.namespace_roles"
+      },
+      "ResultPath": "$.user_result",
+      "Next": "CheckResources",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.user_error",
+          "Next": "CheckResources"
+        }
+      ]
+    },
+    "CheckResources": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.job_config.resources[0]",
+          "IsPresent": true,
+          "Next": "ProcessResources"
+        }
+      ],
+      "Default": "MarkComplete"
+    },
+    "ProcessResources": {
+      "Type": "Task",
+      "Resource": "${ResourceOrchestratorLambdaArn}",
+      "Parameters": {
+        "job_config.$": "$.job_config",
+        "ssm_base_path.$": "$.ssm_base_path",
+        "petname.$": "$.petname"
+      },
+      "ResultPath": "$.resources_result",
+      "Next": "CheckResourcesResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.resources_error",
+          "Next": "MarkFailed"
+        }
+      ]
+    },
+    "CheckResourcesResult": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.resources_result.status",
+          "StringEquals": "failed",
+          "Next": "MarkFailed"
+        },
+        {
+          "Variable": "$.resources_result.status",
+          "StringEquals": "partial",
+          "Next": "MarkPartial"
+        }
+      ],
+      "Default": "MarkComplete"
+    },
+    "MarkComplete": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "COMPLETED",
+        "job_execution_id.$": "$.job_execution_id",
+        "email.$": "$.email",
+        "petname.$": "$.petname"
+      },
+      "End": true
+    },
+    "MarkPartial": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "PARTIAL",
+        "job_execution_id.$": "$.job_execution_id",
+        "email.$": "$.email",
+        "petname.$": "$.petname",
+        "resources_result.$": "$.resources_result"
+      },
+      "End": true
+    },
+    "MarkFailed": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "FAILED",
+        "job_execution_id.$": "$.job_execution_id",
+        "error.$": "$.error"
+      },
+      "End": true
+    }
+  }
+}

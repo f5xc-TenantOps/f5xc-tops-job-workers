@@ -1,8 +1,8 @@
-"""Create origin pool in F5 XC tenant."""
+"""Create HTTP load balancer in F5 XC tenant."""
 
 from typing import Any, Dict
 
-from f5xc_tops_py_client import origin_pool, session
+from f5xc_tops_py_client import http_loadbalancer, session
 from shared.decorators import lambda_handler, with_retry
 from shared.errors import TransientError, is_already_exists_error
 from shared.logging import StructuredLogger
@@ -10,19 +10,19 @@ from shared.ssm import get_ssm_parameters
 
 
 @with_retry(max_attempts=3)
-def _create_origin_pool_with_retry(api, payload: dict, namespace: str) -> None:
-    """Call XC API to create origin pool, with retry on transient failures."""
+def _create_http_lb_with_retry(api, payload: dict, namespace: str) -> None:
+    """Call XC API to create HTTP load balancer, with retry on transient failures."""
     try:
         api.create(payload=payload, namespace=namespace)
     except Exception as e:
         # Don't retry "already exists" errors - they're not transient
         if is_already_exists_error(e):
             raise
-        raise TransientError(f"Failed to create origin pool: {e}") from e
+        raise TransientError(f"Failed to create HTTP load balancer: {e}") from e
 
 
-def create_pool(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, Any]:
-    """Create an origin pool in F5 XC.
+def create_lb(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, Any]:
+    """Create an HTTP load balancer in F5 XC.
 
     Args:
         event: Contains ssm_base_path, metadata, and spec.
@@ -31,7 +31,7 @@ def create_pool(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     Returns:
         Dict with status and resource name.
     """
-    step = logger.with_step("create_origin_pool")
+    step = logger.with_step("create_http_lb")
 
     ssm_base_path = event["ssm_base_path"]
     metadata = event["metadata"]
@@ -46,7 +46,7 @@ def create_pool(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
 
     # Get XC client
     auth = session(tenant_url=params["tenant-url"], api_token=params["token-value"])
-    api = origin_pool(auth)
+    api = http_loadbalancer(auth)
 
     # Build payload
     payload = {
@@ -54,33 +54,33 @@ def create_pool(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
         "spec": spec
     }
 
-    step.info("Creating origin pool", name=name, namespace=namespace)
+    step.info("Creating HTTP load balancer", name=name, namespace=namespace, domains=spec.get("domains"))
 
     try:
-        _create_origin_pool_with_retry(api, payload, namespace)
-        step.info("Origin pool created", name=name)
+        _create_http_lb_with_retry(api, payload, namespace)
+        step.info("HTTP load balancer created", name=name)
         return {"status": "success", "name": name, "created": True}
     except Exception as e:
         if is_already_exists_error(e):
-            step.info("Origin pool already exists", name=name)
+            step.info("HTTP load balancer already exists", name=name)
             return {"status": "success", "name": name, "already_existed": True}
-        step.error("Failed to create origin pool", error=str(e))
+        step.error("Failed to create HTTP load balancer", error=str(e))
         raise
 
 
 @lambda_handler
 def handler(event: Dict[str, Any], context, logger: StructuredLogger) -> Dict[str, Any]:
     """Lambda entry point."""
-    return create_pool(event, logger)
+    return create_lb(event, logger)
 
 
 if __name__ == "__main__":
     class MockContext:
-        function_name = "origin_pool_create"
+        function_name = "http_lb_create"
 
     test_event = {
         "ssm_base_path": "/tenantOps/test",
-        "metadata": {"name": "test-pool", "namespace": "test"},
-        "spec": {"port": 80}
+        "metadata": {"name": "test-lb", "namespace": "test"},
+        "spec": {"domains": ["test.example.com"]}
     }
     handler(test_event, MockContext())
