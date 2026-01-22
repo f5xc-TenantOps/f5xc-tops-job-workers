@@ -24,6 +24,7 @@ from .job_config import (
     validate_job_config,
     substitute_variables,
 )
+from .job_state import JobState, JobStatus, StepStatus
 from .logging import StructuredLogger
 from .xc_operations import create_resource, delete_resource
 
@@ -51,4 +52,8 @@ __all__ = [
     "ResourceDefinition",
     "validate_job_config",
     "substitute_variables",
+    # Job State
+    "JobState",
+    "JobStatus",
+    "StepStatus",
 ]
