@@ -266,6 +266,27 @@ class XCClient:
         }
         return self.put("/api/web/custom/namespaces/system/user_roles", payload)
 
+    def list_users(self) -> list:
+        """List all users in the tenant.
+
+        Returns:
+            List of user dictionaries with email, group_names, namespace_roles, etc.
+        """
+        response = self.get("/api/web/custom/namespaces/system/user_roles")
+        return response.get("items", [])
+
+    def get_user(self, email: str) -> Optional[Dict[str, Any]]:
+        """Get a user by email.
+
+        Args:
+            email: User's email address.
+
+        Returns:
+            User dictionary if found, None otherwise.
+        """
+        users = self.list_users()
+        return next((u for u in users if u.get("email") == email), None)
+
     # --- Generic Config Resources (full payload pass-through) ---
 
     def create_origin_pool(self, namespace: str, payload: Dict[str, Any]) -> Dict[str, Any]:
