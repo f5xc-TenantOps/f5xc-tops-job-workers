@@ -1,0 +1,212 @@
+"""Resource orchestrator for provisioning workflow.
+
+Builds dependency graph and executes resource lambdas in correct order.
+"""
+
+import json
+import os
+from typing import Any, Dict, List
+
+from shared.decorators import lambda_handler
+from shared.dependency_graph import build_execution_order, DependencyCycleError
+from shared.errors import PermanentError, TransientError
+from shared.job_config import ResourceDefinition
+from shared.logging import StructuredLogger
+
+
+# Lazy-loaded boto3 client
+lambda_client = None
+
+# Lambda function name prefix (e.g., "tops-" in prod, "tops-dev-" in dev)
+LAMBDA_PREFIX = os.getenv("LAMBDA_PREFIX", "tops-")
+
+
+def _get_lambda_client():
+    """Get or create the Lambda client."""
+    global lambda_client
+    if lambda_client is None:
+        import boto3
+        lambda_client = boto3.client("lambda")
+    return lambda_client
+
+
+def build_execution_plan(resources: List[Dict[str, Any]], logger: StructuredLogger) -> List[List[Dict[str, Any]]]:
+    """Build execution levels from resource list.
+
+    Args:
+        resources: List of resource dicts with type, depends_on, metadata, spec.
+        logger: Structured logger.
+
+    Returns:
+        List of levels, each containing resources to execute in parallel.
+    """
+    step = logger.with_step("build_execution_plan")
+
+    if not resources:
+        step.info("No resources to process")
+        return []
+
+    # Convert to ResourceDefinition objects
+    resource_defs = [
+        ResourceDefinition(
+            type=r["type"],
+            depends_on=r.get("depends_on", []),
+            metadata=r["metadata"],
+            spec=r["spec"]
+        )
+        for r in resources
+    ]
+
+    try:
+        levels = build_execution_order(resource_defs)
+        # Convert back to dicts for JSON serialization
+        result = [
+            [
+                {
+                    "type": r.type,
+                    "depends_on": r.depends_on,
+                    "metadata": r.metadata,
+                    "spec": r.spec
+                }
+                for r in level
+            ]
+            for level in levels
+        ]
+        step.info("Built execution plan", levels=len(result), total_resources=len(resources))
+        return result
+    except DependencyCycleError as e:
+        step.error("Dependency cycle detected", error=str(e))
+        raise PermanentError(f"Invalid resource dependencies: {e}") from e
+
+
+def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: StructuredLogger) -> Dict[str, Any]:
+    """Execute a single resource creation lambda.
+
+    Args:
+        resource: Resource definition with type, metadata, spec.
+        ssm_base_path: SSM parameter path for credentials.
+        logger: Structured logger.
+
+    Returns:
+        Result from the resource lambda.
+    """
+    resource_type = resource["type"]
+    resource_name = resource["metadata"]["name"]
+    step = logger.with_step(f"execute_{resource_type}")
+
+    # Determine lambda function name
+    function_name = f"{LAMBDA_PREFIX}{resource_type}_create"
+
+    payload = {
+        "ssm_base_path": ssm_base_path,
+        "metadata": resource["metadata"],
+        "spec": resource["spec"]
+    }
+
+    step.info("Invoking resource lambda",
+              function=function_name,
+              resource_name=resource_name)
+
+    client = _get_lambda_client()
+
+    try:
+        response = client.invoke(
+            FunctionName=function_name,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload)
+        )
+
+        result = json.loads(response["Payload"].read())
+
+        if result.get("statusCode") == 200:
+            step.info("Resource created successfully", resource_name=resource_name)
+            return {"status": "success", "name": resource_name, "type": resource_type}
+        else:
+            error = result.get("body", "Unknown error")
+            step.error("Resource creation failed", resource_name=resource_name, error=error)
+            raise TransientError(f"Resource creation failed: {error}")
+
+    except client.exceptions.ResourceNotFoundException:
+        step.error("Resource lambda not found", function=function_name)
+        raise PermanentError(f"Lambda function not found: {function_name}")
+    except Exception as e:
+        step.error("Lambda invocation failed", error=str(e))
+        raise TransientError(f"Failed to invoke {function_name}: {e}") from e
+
+
+def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, Any]:
+    """Orchestrate resource creation.
+
+    Args:
+        event: Contains job_config with resources and ssm_base_path.
+        logger: Structured logger.
+
+    Returns:
+        Dict with created resources and their statuses.
+    """
+    step = logger.with_step("orchestrate")
+
+    job_config = event.get("job_config", {})
+    resources = job_config.get("resources", [])
+    ssm_base_path = event.get("ssm_base_path", job_config.get("ssm_base_path"))
+
+    if not ssm_base_path:
+        raise PermanentError("Missing ssm_base_path")
+
+    # Build execution plan
+    levels = build_execution_plan(resources, logger)
+
+    if not levels:
+        step.info("No resources to create")
+        return {"status": "success", "resources": {}}
+
+    # Execute each level
+    results = {}
+    for level_idx, level in enumerate(levels):
+        step.info(f"Executing level {level_idx}", resource_count=len(level))
+
+        # In a real Step Function, this would be a Map state for parallel execution
+        # For now, we execute sequentially within the lambda
+        for resource in level:
+            resource_name = resource["metadata"]["name"]
+            try:
+                result = execute_resource(resource, ssm_base_path, logger)
+                results[resource_name] = result
+            except Exception as e:
+                results[resource_name] = {
+                    "status": "failed",
+                    "name": resource_name,
+                    "type": resource["type"],
+                    "error": str(e)
+                }
+                # Continue with other resources in level, but mark overall as partial
+
+    # Check for any failures
+    failed = [r for r in results.values() if r.get("status") == "failed"]
+    if failed:
+        step.warn("Some resources failed", failed_count=len(failed))
+        return {"status": "partial", "resources": results}
+
+    step.info("All resources created successfully")
+    return {"status": "success", "resources": results}
+
+
+@lambda_handler
+def handler(event: Dict[str, Any], context, logger: StructuredLogger) -> Dict[str, Any]:
+    """Lambda entry point."""
+    return orchestrate(event, logger)
+
+
+if __name__ == "__main__":
+    class MockContext:
+        function_name = "resource_orchestrator"
+
+    test_event = {
+        "ssm_base_path": "/tenantOps/test",
+        "job_config": {
+            "resources": [
+                {"type": "origin_pool", "depends_on": [], "metadata": {"name": "test-pool", "namespace": "test"}, "spec": {}}
+            ]
+        }
+    }
+    handler(test_event, MockContext())
