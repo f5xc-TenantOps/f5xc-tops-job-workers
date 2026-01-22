@@ -11,7 +11,9 @@ from shared.decorators import lambda_handler
 from shared.dependency_graph import build_execution_order, DependencyCycleError
 from shared.errors import PermanentError, TransientError
 from shared.job_config import ResourceDefinition
+from shared.job_state import JobState, JobStatus, StepStatus
 from shared.logging import StructuredLogger
+from shared.state import StateManager, get_job_state_from_event
 
 
 # Lazy-loaded boto3 client
@@ -88,13 +90,16 @@ def build_execution_plan(resources: List[Dict[str, Any]], logger: StructuredLogg
         raise PermanentError(f"Invalid resource dependencies: {e}") from e
 
 
-def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: StructuredLogger) -> Dict[str, Any]:
+def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: StructuredLogger,
+                     job_state: JobState = None, lab_id: str = None) -> Dict[str, Any]:
     """Execute a single resource creation lambda.
 
     Args:
         resource: Resource definition with type, metadata, spec.
         ssm_base_path: SSM parameter path for credentials.
         logger: Structured logger.
+        job_state: Optional job state for state coordination.
+        lab_id: Optional lab identifier.
 
     Returns:
         Result from the resource lambda.
@@ -109,8 +114,23 @@ def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: Struc
     payload = {
         "ssm_base_path": ssm_base_path,
         "metadata": resource["metadata"],
-        "spec": resource["spec"]
+        "spec": resource["spec"],
+        "lab_id": lab_id,
     }
+
+    # Include job_state if present
+    if job_state:
+        payload["job_state"] = {
+            "job_execution_id": job_state.job_execution_id,
+            "job_id": job_state.job_id,
+            "trigger_source": job_state.trigger_source,
+            "email": job_state.email,
+            "petname": job_state.petname,
+            "dep_id": job_state.dep_id,
+            "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
+            "steps": job_state.steps,
+            "resources": job_state.resources,
+        }
 
     step.info("Invoking resource lambda",
               function=function_name,
@@ -158,15 +178,28 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     job_config = event.get("job_config", {})
     resources = job_config.get("resources", [])
     ssm_base_path = event.get("ssm_base_path", job_config.get("ssm_base_path"))
+    lab_id = event.get("lab_id")
 
     if not ssm_base_path:
         raise PermanentError("Missing ssm_base_path")
+
+    # Get job state for state updates
+    job_state = get_job_state_from_event(event)
+    state_manager = StateManager() if job_state else None
+
+    # Mark resources step started
+    if state_manager and job_state:
+        job_state.update_step("resources", StepStatus.IN_PROGRESS)
+        state_manager.update_state(job_state, lab_id=lab_id)
 
     # Build execution plan
     levels = build_execution_plan(resources, logger)
 
     if not levels:
         step.info("No resources to create")
+        if state_manager and job_state:
+            job_state.update_step("resources", StepStatus.SUCCESS)
+            state_manager.update_state(job_state, lab_id=lab_id)
         return {"status": "success", "resources": {}}
 
     # Execute each level
@@ -175,8 +208,6 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     for level_idx, level in enumerate(levels):
         step.info(f"Executing level {level_idx}", resource_count=len(level))
 
-        # In a real Step Function, this would be a Map state for parallel execution
-        # For now, we execute sequentially within the lambda
         for resource in level:
             resource_name = resource["metadata"]["name"]
             depends_on = resource.get("depends_on", [])
@@ -197,7 +228,7 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
                 continue
 
             try:
-                result = execute_resource(resource, ssm_base_path, logger)
+                result = execute_resource(resource, ssm_base_path, logger, job_state, lab_id)
                 results[resource_name] = result
             except Exception as e:
                 results[resource_name] = {
@@ -207,15 +238,20 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
                     "error": str(e)
                 }
                 failed_resources.add(resource_name)
-                # Continue with other resources in level, but mark overall as partial
 
-    # Check for any failures
+    # Check for any failures and update state
     failed = [r for r in results.values() if r.get("status") == "failed"]
     if failed:
         step.warn("Some resources failed", failed_count=len(failed))
+        if state_manager and job_state:
+            job_state.update_step("resources", StepStatus.FAILED, error=f"{len(failed)} resources failed")
+            state_manager.update_state(job_state, lab_id=lab_id)
         return {"status": "partial", "resources": results}
 
     step.info("All resources created successfully")
+    if state_manager and job_state:
+        job_state.update_step("resources", StepStatus.SUCCESS)
+        state_manager.update_state(job_state, lab_id=lab_id)
     return {"status": "success", "resources": results}
 
 

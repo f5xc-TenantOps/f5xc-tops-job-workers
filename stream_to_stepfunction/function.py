@@ -11,7 +11,9 @@ from typing import Any, Dict
 
 from shared.decorators import lambda_handler
 from shared.errors import PermanentError, TransientError
+from shared.job_state import JobState, JobStatus
 from shared.logging import StructuredLogger
+from shared.state import StateManager
 
 
 # Lazy-initialized clients for testability
@@ -106,7 +108,23 @@ def process_record(record: Dict[str, Any], logger: StructuredLogger) -> Dict[str
     # Generate execution ID
     execution_id = str(uuid.uuid4())
 
-    # Build Step Function input
+    # Create initial job state
+    state_manager = StateManager()
+    job_state = JobState(
+        job_execution_id=execution_id,
+        job_id=job_id,
+        trigger_source="udf",
+        email=email,
+        petname=petname,
+        dep_id=dep_id,
+        status=JobStatus.PENDING,
+    )
+
+    # Write initial state to S3 and DynamoDB
+    state_manager.update_state(job_state, lab_id=lab_id)
+    step.info("Initial job state created", execution_id=execution_id)
+
+    # Build Step Function input - include job_state for downstream lambdas
     sfn_input = {
         "job_id": job_id,
         "job_execution_id": execution_id,
@@ -115,6 +133,17 @@ def process_record(record: Dict[str, Any], logger: StructuredLogger) -> Dict[str
         "lab_id": lab_id,
         "email": email,
         "petname": petname,
+        "job_state": {
+            "job_execution_id": execution_id,
+            "job_id": job_id,
+            "trigger_source": "udf",
+            "email": email,
+            "petname": petname,
+            "dep_id": dep_id,
+            "status": "IN_PROGRESS",
+            "steps": {},
+            "resources": {},
+        },
     }
 
     step.info("Starting Step Function execution",

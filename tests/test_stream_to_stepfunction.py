@@ -5,10 +5,11 @@ import json
 import os
 
 
+@patch("stream_to_stepfunction.function.StateManager")
 @patch("stream_to_stepfunction.function._get_sfn_client")
 @patch("stream_to_stepfunction.function._get_dynamodb_client")
 @patch.dict(os.environ, {"STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123:stateMachine:test"})
-def test_stream_triggers_stepfunction_on_insert(mock_get_ddb, mock_get_sfn):
+def test_stream_triggers_stepfunction_on_insert(mock_get_ddb, mock_get_sfn, mock_state_manager):
     """DynamoDB INSERT event triggers Step Function."""
     from stream_to_stepfunction.function import process_record
     from shared.logging import StructuredLogger
@@ -42,6 +43,7 @@ def test_stream_triggers_stepfunction_on_insert(mock_get_ddb, mock_get_sfn):
 
     assert result["triggered"] is True
     mock_sfn.start_execution.assert_called_once()
+    mock_state_manager.return_value.update_state.assert_called_once()
 
 
 def test_stream_ignores_non_insert_events():
@@ -109,10 +111,11 @@ def test_stream_handles_missing_fields(mock_get_ddb, mock_get_sfn):
     mock_sfn.start_execution.assert_not_called()
 
 
+@patch("stream_to_stepfunction.function.StateManager")
 @patch("stream_to_stepfunction.function._get_sfn_client")
 @patch("stream_to_stepfunction.function._get_dynamodb_client")
 @patch.dict(os.environ, {"STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123:stateMachine:test"})
-def test_stream_uses_lab_id_as_job_id_when_not_found(mock_get_ddb, mock_get_sfn):
+def test_stream_uses_lab_id_as_job_id_when_not_found(mock_get_ddb, mock_get_sfn, mock_state_manager):
     """When lab config not found, use lab_id as job_id."""
     from stream_to_stepfunction.function import process_record
     from shared.logging import StructuredLogger
@@ -147,3 +150,4 @@ def test_stream_uses_lab_id_as_job_id_when_not_found(mock_get_ddb, mock_get_sfn)
     call_args = mock_sfn.start_execution.call_args
     sfn_input = json.loads(call_args.kwargs["input"])
     assert sfn_input["job_id"] == "my-lab-id"
+    mock_state_manager.return_value.update_state.assert_called_once()
