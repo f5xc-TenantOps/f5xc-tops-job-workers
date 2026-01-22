@@ -384,6 +384,13 @@ def mark_step_complete(
     )
 
 
+def mark_step_failed(
+    job_state: JobState, step_name: str, error: str, lab_id: Optional[str] = None
+) -> None:
+    """Mark step failed using the default manager."""
+    get_state_manager().mark_step_failed(job_state, step_name, error, lab_id=lab_id)
+
+
 def add_output(
     job_state: JobState, key: str, value: Any, lab_id: Optional[str] = None
 ) -> None:

@@ -189,8 +189,7 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
 
     # Mark resources step started
     if state_manager and job_state:
-        job_state.update_step("resources", StepStatus.IN_PROGRESS)
-        state_manager.update_state(job_state, lab_id=lab_id)
+        state_manager.mark_step_started(job_state, "resources", lab_id=lab_id)
 
     # Build execution plan
     levels = build_execution_plan(resources, logger)

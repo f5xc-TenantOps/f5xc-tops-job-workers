@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from shared.decorators import lambda_handler
 from shared.errors import ResourceExistsError
-from shared.job_state import JobState, JobStatus, StepStatus
+from shared.job_state import StepStatus
 from shared.logging import StructuredLogger
 from shared.ssm import get_ssm_parameters
 from shared.state import StateManager, get_job_state_from_event

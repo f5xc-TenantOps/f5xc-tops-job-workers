@@ -44,6 +44,7 @@ from .state import (
     update_state,
     mark_step_started,
     mark_step_complete,
+    mark_step_failed,
     add_output,
 )
 
@@ -93,5 +94,6 @@ __all__ = [
     "update_state",
     "mark_step_started",
     "mark_step_complete",
+    "mark_step_failed",
     "add_output",
 ]
