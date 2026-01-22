@@ -14,6 +14,32 @@ import boto3
 from shared.job_state import JobState, JobStatus, StepStatus
 
 
+def get_job_state_from_event(event: dict) -> Optional[JobState]:
+    """Extract JobState from event if present.
+
+    Args:
+        event: Lambda event dict that may contain a job_state key.
+
+    Returns:
+        JobState instance if job_state data is present, None otherwise.
+    """
+    job_state_data = event.get("job_state")
+    if not job_state_data:
+        return None
+
+    return JobState(
+        job_execution_id=job_state_data["job_execution_id"],
+        job_id=job_state_data["job_id"],
+        trigger_source=job_state_data["trigger_source"],
+        email=job_state_data["email"],
+        petname=job_state_data["petname"],
+        status=JobStatus(job_state_data.get("status", "IN_PROGRESS")),
+        dep_id=job_state_data.get("dep_id"),
+        steps=job_state_data.get("steps", {}),
+        resources=job_state_data.get("resources", {}),
+    )
+
+
 def _build_s3_state(
     job_state: JobState,
     lab_id: Optional[str] = None,

@@ -183,3 +183,42 @@ def test_state_updates_on_success(mock_xc_client, mock_get_params, mock_state_ma
     # Verify state was updated
     mock_state_manager.mark_step_started.assert_called_once()
     mock_state_manager.mark_step_complete.assert_called_once()
+
+
+@patch("ns_create.function.StateManager")
+@patch("ns_create.function.get_ssm_parameters")
+def test_state_updates_on_failure(mock_get_params, mock_state_manager_cls):
+    """Namespace creation marks step failed on exception."""
+    from ns_create.function import handler
+    from shared.errors import TransientError
+
+    mock_get_params.side_effect = TransientError("SSM unavailable")
+
+    mock_state_manager = MagicMock()
+    mock_state_manager_cls.return_value = mock_state_manager
+
+    class MockContext:
+        function_name = "ns_create"
+
+    event = {
+        "ssm_base_path": "/test",
+        "namespace_name": "test-ns",
+        "job_state": {
+            "job_execution_id": "exec-123",
+            "job_id": "job-456",
+            "trigger_source": "udf",
+            "email": "user@test.com",
+            "petname": "test-ns",
+            "dep_id": "dep-789",
+            "status": "IN_PROGRESS",
+            "steps": {},
+            "resources": {},
+        },
+        "lab_id": "lab-001",
+    }
+
+    with pytest.raises(TransientError):
+        handler(event, MockContext())
+
+    mock_state_manager.mark_step_started.assert_called_once()
+    mock_state_manager.mark_step_failed.assert_called_once()

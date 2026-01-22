@@ -1,14 +1,12 @@
 """
 Create or update a user in an F5 XC tenant.
 """
-from typing import Optional
-
 from shared.decorators import lambda_handler
 from shared.errors import PermanentError, ResourceExistsError
-from shared.job_state import JobState, JobStatus, StepStatus
+from shared.job_state import StepStatus
 from shared.logging import StructuredLogger
 from shared.ssm import get_ssm_parameters
-from shared.state import StateManager
+from shared.state import get_job_state_from_event, StateManager
 from shared.xc_client import XCClient
 
 
@@ -34,25 +32,6 @@ def merge_namespace_roles(existing_roles: list, new_roles: list) -> list:
     return [dict(role) for role in merged_roles]  # Convert back to list of dicts
 
 
-def _get_job_state_from_event(event: dict) -> Optional[JobState]:
-    """Extract JobState from event if present."""
-    job_state_data = event.get("job_state")
-    if not job_state_data:
-        return None
-
-    return JobState(
-        job_execution_id=job_state_data["job_execution_id"],
-        job_id=job_state_data["job_id"],
-        trigger_source=job_state_data["trigger_source"],
-        email=job_state_data["email"],
-        petname=job_state_data["petname"],
-        status=JobStatus(job_state_data.get("status", "IN_PROGRESS")),
-        dep_id=job_state_data.get("dep_id"),
-        steps=job_state_data.get("steps", {}),
-        resources=job_state_data.get("resources", {}),
-    )
-
-
 @lambda_handler
 def handler(event: dict, context, logger: StructuredLogger):
     """Main handler to process the payload and create or update a user."""
@@ -69,7 +48,7 @@ def handler(event: dict, context, logger: StructuredLogger):
     lab_id = event.get("lab_id")
 
     # Get job state for state updates
-    job_state = _get_job_state_from_event(event)
+    job_state = get_job_state_from_event(event)
     state_manager = StateManager() if job_state else None
 
     # Mark step started
@@ -155,7 +134,7 @@ def handler(event: dict, context, logger: StructuredLogger):
                 raise PermanentError(f"User '{email}' reported existing but was not found in the user list.")
 
     except Exception as e:
-        # Mark step failed (but don't double-mark if it's a PermanentError we raised)
+        # Mark step failed on any exception
         if state_manager and job_state:
             state_manager.mark_step_failed(job_state, "user", str(e), lab_id=lab_id)
         raise

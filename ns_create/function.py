@@ -6,10 +6,10 @@ from typing import Optional
 
 from shared.decorators import lambda_handler
 from shared.errors import PermanentError, ResourceExistsError, TransientError
-from shared.job_state import JobState, JobStatus, StepStatus
+from shared.job_state import StepStatus
 from shared.logging import StructuredLogger
 from shared.ssm import get_ssm_parameters
-from shared.state import StateManager
+from shared.state import get_job_state_from_event, StateManager
 from shared.xc_client import XCClient
 
 
@@ -22,25 +22,6 @@ def validate_payload(payload: dict):
 
     if missing_fields:
         raise PermanentError(f"Missing required fields in payload: {', '.join(missing_fields)}")
-
-
-def _get_job_state_from_event(event: dict) -> Optional[JobState]:
-    """Extract JobState from event if present."""
-    job_state_data = event.get("job_state")
-    if not job_state_data:
-        return None
-
-    return JobState(
-        job_execution_id=job_state_data["job_execution_id"],
-        job_id=job_state_data["job_id"],
-        trigger_source=job_state_data["trigger_source"],
-        email=job_state_data["email"],
-        petname=job_state_data["petname"],
-        status=JobStatus(job_state_data.get("status", "IN_PROGRESS")),
-        dep_id=job_state_data.get("dep_id"),
-        steps=job_state_data.get("steps", {}),
-        resources=job_state_data.get("resources", {}),
-    )
 
 
 def wait_for_namespace(client: XCClient, namespace_name: str, logger: StructuredLogger, timeout: int = 20, interval: int = 5) -> str:
@@ -76,7 +57,7 @@ def handler(event: dict, context, logger: StructuredLogger):
     lab_id = event.get("lab_id")
 
     # Get job state for state updates
-    job_state = _get_job_state_from_event(event)
+    job_state = get_job_state_from_event(event)
     state_manager = StateManager() if job_state else None
 
     # Mark step started

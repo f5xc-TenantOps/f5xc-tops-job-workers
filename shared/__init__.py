@@ -40,6 +40,7 @@ from .xc_operations import create_resource, delete_resource
 from .state import (
     StateManager,
     get_state_manager,
+    get_job_state_from_event,
     update_state,
     mark_step_started,
     mark_step_complete,
@@ -88,6 +89,7 @@ __all__ = [
     # State Management
     "StateManager",
     "get_state_manager",
+    "get_job_state_from_event",
     "update_state",
     "mark_step_started",
     "mark_step_complete",
