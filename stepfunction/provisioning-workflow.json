@@ -24,7 +24,10 @@
         "petname.$": "$.petname",
         "ssm_base_path.$": "$.ssm_base_path",
         "job_execution_id.$": "$$.Execution.Name",
-        "status": "IN_PROGRESS"
+        "status": "IN_PROGRESS",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id",
+        "dep_id.$": "$.dep_id"
       },
       "Next": "CheckNamespace"
     },
@@ -45,7 +48,9 @@
       "Parameters": {
         "ssm_base_path.$": "$.ssm_base_path",
         "namespace_name.$": "$.petname",
-        "description.$": "States.Format('Namespace for job {}', $.job_execution_id)"
+        "description.$": "States.Format('Namespace for job {}', $.job_execution_id)",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id"
       },
       "ResultPath": "$.namespace_result",
       "Next": "CheckUser",
@@ -77,7 +82,9 @@
         "last_name.$": "$.petname",
         "email.$": "$.email",
         "group_names.$": "$.job_config.user.group_names",
-        "namespace_roles.$": "$.job_config.user.namespace_roles"
+        "namespace_roles.$": "$.job_config.user.namespace_roles",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id"
       },
       "ResultPath": "$.user_result",
       "Next": "CheckResources",
@@ -106,7 +113,9 @@
       "Parameters": {
         "job_config.$": "$.job_config",
         "ssm_base_path.$": "$.ssm_base_path",
-        "petname.$": "$.petname"
+        "petname.$": "$.petname",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id"
       },
       "ResultPath": "$.resources_result",
       "Next": "CheckResourcesResult",
