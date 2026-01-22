@@ -190,7 +190,8 @@ def main(payload: dict, logger: StructuredLogger):
 
     client = XCClient(
         tenant_url=params["tenant-url"],
-        api_token=params["token-value"]
+        api_token=params["token-value"],
+        validate=False
     )
 
     # Create Origin Pool
