@@ -16,6 +16,14 @@ from .errors import (
     ResourceNotFoundError,
     TransientError,
 )
+from .job_config import (
+    JobConfig,
+    UserConfig,
+    NamespaceConfig,
+    ResourceDefinition,
+    validate_job_config,
+    substitute_variables,
+)
 from .logging import StructuredLogger
 from .xc_operations import create_resource, delete_resource
 
@@ -36,4 +44,11 @@ __all__ = [
     # Operations
     "create_resource",
     "delete_resource",
+    # Job Config
+    "JobConfig",
+    "UserConfig",
+    "NamespaceConfig",
+    "ResourceDefinition",
+    "validate_job_config",
+    "substitute_variables",
 ]
