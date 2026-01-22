@@ -37,6 +37,14 @@ from .logging import StructuredLogger
 from .ssm import get_ssm_parameters
 from .xc_client import XCClient
 from .xc_operations import create_resource, delete_resource
+from .state import (
+    StateManager,
+    get_state_manager,
+    update_state,
+    mark_step_started,
+    mark_step_complete,
+    add_output,
+)
 
 __all__ = [
     # Logging
@@ -77,4 +85,11 @@ __all__ = [
     "MissingDependencyError",
     "DuplicateResourceError",
     "InvalidResourceError",
+    # State Management
+    "StateManager",
+    "get_state_manager",
+    "update_state",
+    "mark_step_started",
+    "mark_step_complete",
+    "add_output",
 ]
