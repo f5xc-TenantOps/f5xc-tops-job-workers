@@ -25,6 +25,13 @@ from .job_config import (
     substitute_variables,
 )
 from .job_state import JobState, JobStatus, StepStatus
+from .dependency_graph import (
+    build_execution_order,
+    DependencyCycleError,
+    MissingDependencyError,
+    DuplicateResourceError,
+    InvalidResourceError,
+)
 from .logging import StructuredLogger
 from .xc_operations import create_resource, delete_resource
 
@@ -56,4 +63,10 @@ __all__ = [
     "JobState",
     "JobStatus",
     "StepStatus",
+    # Dependency Graph
+    "build_execution_order",
+    "DependencyCycleError",
+    "MissingDependencyError",
+    "DuplicateResourceError",
+    "InvalidResourceError",
 ]
