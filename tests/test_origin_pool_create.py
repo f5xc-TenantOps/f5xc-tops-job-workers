@@ -3,17 +3,16 @@ from unittest.mock import MagicMock, patch
 
 
 @patch("origin_pool_create.function.get_ssm_parameters")
-@patch("origin_pool_create.function.origin_pool")
-@patch("origin_pool_create.function.session")
-def test_create_origin_pool_success(mock_session, mock_origin_pool, mock_get_params):
+@patch("origin_pool_create.function.XCClient")
+def test_create_origin_pool_success(mock_xc_client_class, mock_get_params):
     """Successfully create an origin pool."""
     from origin_pool_create.function import create_pool
     from shared.logging import StructuredLogger
 
     mock_get_params.return_value = {"tenant-url": "https://test.console.ves.volterra.io", "token-value": "token"}
 
-    mock_api = MagicMock()
-    mock_origin_pool.return_value = mock_api
+    mock_client = MagicMock()
+    mock_xc_client_class.return_value = mock_client
 
     logger = StructuredLogger("test", "test-correlation-id")
     event = {
@@ -26,59 +25,26 @@ def test_create_origin_pool_success(mock_session, mock_origin_pool, mock_get_par
 
     assert result["status"] == "success"
     assert result["name"] == "test-pool"
-    mock_api.create.assert_called_once()
+    assert result["created"] is True
+    mock_client.create_origin_pool.assert_called_once_with(
+        "test-ns",
+        {"metadata": {"name": "test-pool", "namespace": "test-ns"}, "spec": event["spec"]}
+    )
 
 
 @patch("origin_pool_create.function.get_ssm_parameters")
-@patch("origin_pool_create.function.origin_pool")
-@patch("origin_pool_create.function.session")
-def test_create_origin_pool_already_exists(mock_session, mock_origin_pool, mock_get_params):
+@patch("origin_pool_create.function.XCClient")
+def test_create_origin_pool_already_exists(mock_xc_client_class, mock_get_params):
     """Handle origin pool that already exists (idempotent)."""
     from origin_pool_create.function import create_pool
     from shared.logging import StructuredLogger
+    from shared.errors import ResourceExistsError
 
     mock_get_params.return_value = {"tenant-url": "https://test.console.ves.volterra.io", "token-value": "token"}
 
-    mock_api = MagicMock()
-    mock_api.create.side_effect = Exception("already exist")
-    mock_api.get.return_value = {"metadata": {"name": "test-pool"}}
-    mock_origin_pool.return_value = mock_api
-
-    logger = StructuredLogger("test", "test-correlation-id")
-    event = {
-        "ssm_base_path": "/tenantOps/test",
-        "metadata": {"name": "test-pool", "namespace": "test-ns"},
-        "spec": {"port": 80}
-    }
-
-    result = create_pool(event, logger)
-
-    assert result["status"] == "success"
-    assert result["already_existed"] is True
-
-
-@pytest.mark.parametrize("error_message", [
-    "already exist",
-    "Resource already exists",
-    "ALREADY EXISTS in namespace",
-    "duplicate entry found",
-    "Duplicate resource",
-    "conflict detected",
-    "Conflict: resource exists",
-])
-@patch("origin_pool_create.function.get_ssm_parameters")
-@patch("origin_pool_create.function.origin_pool")
-@patch("origin_pool_create.function.session")
-def test_create_origin_pool_already_exists_patterns(mock_session, mock_origin_pool, mock_get_params, error_message):
-    """Handle various 'already exists' error message patterns."""
-    from origin_pool_create.function import create_pool
-    from shared.logging import StructuredLogger
-
-    mock_get_params.return_value = {"tenant-url": "https://test.console.ves.volterra.io", "token-value": "token"}
-
-    mock_api = MagicMock()
-    mock_api.create.side_effect = Exception(error_message)
-    mock_origin_pool.return_value = mock_api
+    mock_client = MagicMock()
+    mock_client.create_origin_pool.side_effect = ResourceExistsError("Resource already exists")
+    mock_xc_client_class.return_value = mock_client
 
     logger = StructuredLogger("test", "test-correlation-id")
     event = {
@@ -94,22 +60,18 @@ def test_create_origin_pool_already_exists_patterns(mock_session, mock_origin_po
 
 
 @patch("origin_pool_create.function.get_ssm_parameters")
-@patch("origin_pool_create.function.origin_pool")
-@patch("origin_pool_create.function.session")
-def test_create_origin_pool_http_409_conflict(mock_session, mock_origin_pool, mock_get_params):
-    """Handle HTTP 409 Conflict status code."""
+@patch("origin_pool_create.function.XCClient")
+def test_create_origin_pool_permanent_error_raises(mock_xc_client_class, mock_get_params):
+    """Permanent errors are raised to caller."""
     from origin_pool_create.function import create_pool
     from shared.logging import StructuredLogger
+    from shared.errors import PermanentError
 
     mock_get_params.return_value = {"tenant-url": "https://test.console.ves.volterra.io", "token-value": "token"}
 
-    mock_api = MagicMock()
-
-    # Create exception with status_code attribute
-    conflict_error = Exception("API Error")
-    conflict_error.status_code = 409
-    mock_api.create.side_effect = conflict_error
-    mock_origin_pool.return_value = mock_api
+    mock_client = MagicMock()
+    mock_client.create_origin_pool.side_effect = PermanentError("Invalid payload")
+    mock_xc_client_class.return_value = mock_client
 
     logger = StructuredLogger("test", "test-correlation-id")
     event = {
@@ -118,30 +80,21 @@ def test_create_origin_pool_http_409_conflict(mock_session, mock_origin_pool, mo
         "spec": {"port": 80}
     }
 
-    result = create_pool(event, logger)
-
-    assert result["status"] == "success"
-    assert result["already_existed"] is True
+    with pytest.raises(PermanentError):
+        create_pool(event, logger)
 
 
 @patch("origin_pool_create.function.get_ssm_parameters")
-@patch("origin_pool_create.function.origin_pool")
-@patch("origin_pool_create.function.session")
-def test_create_origin_pool_http_409_via_response(mock_session, mock_origin_pool, mock_get_params):
-    """Handle HTTP 409 Conflict via response object."""
+@patch("origin_pool_create.function.XCClient")
+def test_create_origin_pool_client_init(mock_xc_client_class, mock_get_params):
+    """XCClient initialized with correct parameters."""
     from origin_pool_create.function import create_pool
     from shared.logging import StructuredLogger
 
-    mock_get_params.return_value = {"tenant-url": "https://test.console.ves.volterra.io", "token-value": "token"}
+    mock_get_params.return_value = {"tenant-url": "https://test.console.ves.volterra.io", "token-value": "my-token"}
 
-    mock_api = MagicMock()
-
-    # Create exception with response.status_code attribute
-    conflict_error = Exception("API Error")
-    conflict_error.response = MagicMock()
-    conflict_error.response.status_code = 409
-    mock_api.create.side_effect = conflict_error
-    mock_origin_pool.return_value = mock_api
+    mock_client = MagicMock()
+    mock_xc_client_class.return_value = mock_client
 
     logger = StructuredLogger("test", "test-correlation-id")
     event = {
@@ -150,7 +103,10 @@ def test_create_origin_pool_http_409_via_response(mock_session, mock_origin_pool
         "spec": {"port": 80}
     }
 
-    result = create_pool(event, logger)
+    create_pool(event, logger)
 
-    assert result["status"] == "success"
-    assert result["already_existed"] is True
+    mock_xc_client_class.assert_called_once_with(
+        tenant_url="https://test.console.ves.volterra.io",
+        api_token="my-token",
+        validate=False
+    )
