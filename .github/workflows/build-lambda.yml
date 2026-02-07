@@ -1,0 +1,94 @@
+name: Build Lambda
+
+on:
+  workflow_call:
+    inputs:
+      lambda_name:
+        required: true
+        type: string
+        description: "Lambda identifier (e.g., ns_create)"
+      source_dir:
+        required: true
+        type: string
+        description: "Source directory (e.g., ns_create or udf_helpers/botlab-pre)"
+      component:
+        required: true
+        type: string
+        description: "Crossplane component dir (e.g., utility-lambdas)"
+      uses_shared:
+        required: true
+        type: boolean
+        description: "Whether to include shared/ in the package"
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+env:
+  S3_BUCKET: tops-lambda-bucket-v2
+  SHORT_SHA: ${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compute zip name
+        run: |
+          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "ZIP_NAME=${{ inputs.lambda_name }}_${SHORT}.zip" >> $GITHUB_ENV
+          echo "SHORT_SHA=${SHORT}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          pip install -r ${{ inputs.source_dir }}/requirements.txt \
+            -t ${{ inputs.source_dir }}/package --quiet
+
+      - name: Package Lambda function
+        run: |
+          cp ${{ inputs.source_dir }}/function.py ${{ inputs.source_dir }}/package/
+          if [[ "${{ inputs.uses_shared }}" == "true" && -d "shared" ]]; then
+            cp -r shared ${{ inputs.source_dir }}/package/
+          fi
+          cd ${{ inputs.source_dir }}/package
+          zip -r ../../${{ env.ZIP_NAME }} . -q
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp ${{ env.ZIP_NAME }} s3://${{ env.S3_BUCKET }}/${{ env.ZIP_NAME }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Update Crossplane manifest s3Key
+        run: |
+          MANIFEST="crossplane/${{ inputs.component }}/lambda.yaml"
+          if [[ ! -f "$MANIFEST" ]]; then
+            echo "WARNING: $MANIFEST not found, skipping s3Key update"
+            exit 0
+          fi
+          # Find the correct s3Key line for this lambda and update it.
+          # The v2 zip name pattern is {lambda_name}_v2.zip — replace with {lambda_name}_{sha}.zip
+          OLD_PATTERN="${{ inputs.lambda_name }}_[a-f0-9]*\.zip\|${{ inputs.lambda_name }}_v2\.zip"
+          sed -i "s|s3Key: ${OLD_PATTERN}|s3Key: ${{ env.ZIP_NAME }}|g" "$MANIFEST"
+
+      - name: Upload manifest as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ inputs.lambda_name }}
+          path: crossplane/${{ inputs.component }}/lambda.yaml
+
+      - name: Upload zip as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.lambda_name }}_package
+          path: ${{ env.ZIP_NAME }}
