@@ -125,37 +125,60 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all manifest artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: manifest-*
-          merge-multiple: true
-          path: crossplane-updates/
-
-      - name: Apply manifest updates
+      - name: Update s3Key in Crossplane manifests
         run: |
-          # Copy updated manifests back into crossplane/ dir
-          for f in crossplane-updates/*.yaml; do
-            if [[ -f "$f" ]]; then
-              BASENAME=$(basename "$f")
-              # Find matching file in crossplane/ tree
-              DEST=$(find crossplane/ -name "$BASENAME" -type f | head -1)
-              if [[ -n "$DEST" ]]; then
-                cp "$f" "$DEST"
-                echo "Updated: $DEST"
-              fi
-            fi
-          done
+          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          pip install pyyaml --quiet
+          python3 << 'PYEOF'
+          import yaml, os
+
+          short_sha = os.environ["SHORT"]
+          matrix = ${{ needs.detect-changes.outputs.matrix }}
+
+          for entry in matrix["include"]:
+              name = entry["lambda_name"]
+              component = entry["component"]
+              zip_name = f"{name}_{short_sha}.zip"
+              manifest = f"crossplane/{component}/lambda.yaml"
+
+              if not os.path.isfile(manifest):
+                  print(f"WARNING: {manifest} not found, skipping")
+                  continue
+
+              with open(manifest) as f:
+                  content = f.read()
+
+              old = f"{name}_"
+              if old not in content:
+                  print(f"  {name}: no matching s3Key in {manifest}, skipping")
+                  continue
+
+              lines = content.split("\n")
+              updated = 0
+              for i, line in enumerate(lines):
+                  if "s3Key:" in line and f"{name}_" in line:
+                      indent = line[:len(line) - len(line.lstrip())]
+                      lines[i] = f"{indent}s3Key: {zip_name}"
+                      updated += 1
+
+              with open(manifest, "w") as f:
+                  f.write("\n".join(lines))
+
+              print(f"  {name}: updated {updated} s3Key(s) in {manifest}")
+          PYEOF
+        env:
+          SHORT: ${{ github.sha }}
 
       - name: Commit and push manifest updates
         run: |
+          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add crossplane/
           if git diff --staged --quiet; then
             echo "No manifest changes to commit"
           else
-            git commit -m "ci: update Crossplane s3Key for $(git rev-parse --short HEAD)
+            git commit -m "ci: update Crossplane s3Key for ${SHORT}
 
             Automated manifest update from Lambda CI pipeline."
             git push
