@@ -49,8 +49,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r ${{ inputs.source_dir }}/requirements.txt \
-            -t ${{ inputs.source_dir }}/package --quiet
+          mkdir -p ${{ inputs.source_dir }}/package
+          if [[ -f "${{ inputs.source_dir }}/requirements.txt" ]]; then
+            pip install -r ${{ inputs.source_dir }}/requirements.txt \
+              -t ${{ inputs.source_dir }}/package --quiet
+          fi
 
       - name: Package Lambda function
         run: |
