@@ -1,0 +1,159 @@
+name: Lambda CI
+
+on:
+  push:
+    branches: [hive]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".github/workflows/build-lambda.yml"
+  workflow_dispatch:
+    inputs:
+      force_rebuild_all:
+        description: "Rebuild all lambdas regardless of changes"
+        type: boolean
+        default: false
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+      has_changes: ${{ steps.build-matrix.outputs.has_changes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine changed lambdas
+        id: build-matrix
+        run: |
+          set -e
+
+          # Get changed files
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force_rebuild_all }}" == "true" ]]; then
+            export REBUILD_ALL=true
+          else
+            export CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+            export REBUILD_ALL=false
+
+            # If lambda-deps.yaml changed, rebuild everything
+            if echo "$CHANGED" | grep -q "^lambda-deps.yaml$"; then
+              export REBUILD_ALL=true
+            fi
+          fi
+
+          # Check if shared/ changed
+          export SHARED_CHANGED=false
+          if [[ "$REBUILD_ALL" == "false" ]]; then
+            if echo "$CHANGED" | grep -q "^shared/"; then
+              export SHARED_CHANGED=true
+            fi
+          fi
+
+          # Build matrix from lambda-deps.yaml
+          pip install pyyaml --quiet
+          python3 << 'PYEOF'
+          import yaml, json, os
+
+          with open("lambda-deps.yaml") as f:
+              config = yaml.safe_load(f)
+
+          rebuild_all = os.environ.get("REBUILD_ALL") == "true"
+          shared_changed = os.environ.get("SHARED_CHANGED") == "true"
+          changed_str = os.environ.get("CHANGED", "")
+          changed_files = set(changed_str.strip().split("\n")) if changed_str.strip() else set()
+
+          matrix_entries = []
+          for name, spec in config["lambdas"].items():
+              should_build = False
+              if rebuild_all:
+                  should_build = True
+              elif shared_changed and spec["uses_shared"]:
+                  should_build = True
+              else:
+                  # Check if any changed file is under this lambda's dir
+                  for f in changed_files:
+                      if f.startswith(spec["dir"] + "/"):
+                          should_build = True
+                          break
+
+              if should_build:
+                  matrix_entries.append({
+                      "lambda_name": name,
+                      "source_dir": spec["dir"],
+                      "component": spec["component"],
+                      "uses_shared": spec["uses_shared"]
+                  })
+
+          has_changes = len(matrix_entries) > 0
+          # GitHub Actions matrix must have at least 1 entry or be skipped
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps({'include': matrix_entries})}\n")
+              f.write(f"has_changes={'true' if has_changes else 'false'}\n")
+
+          print(f"Lambdas to build: {len(matrix_entries)}")
+          for e in matrix_entries:
+              print(f"  - {e['lambda_name']} ({e['component']})")
+          PYEOF
+
+  build:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      fail-fast: false
+    uses: ./.github/workflows/build-lambda.yml
+    with:
+      lambda_name: ${{ matrix.lambda_name }}
+      source_dir: ${{ matrix.source_dir }}
+      component: ${{ matrix.component }}
+      uses_shared: ${{ matrix.uses_shared }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  commit-manifests:
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all manifest artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: manifest-*
+          merge-multiple: true
+          path: crossplane-updates/
+
+      - name: Apply manifest updates
+        run: |
+          # Copy updated manifests back into crossplane/ dir
+          for f in crossplane-updates/*.yaml; do
+            if [[ -f "$f" ]]; then
+              BASENAME=$(basename "$f")
+              # Find matching file in crossplane/ tree
+              DEST=$(find crossplane/ -name "$BASENAME" -type f | head -1)
+              if [[ -n "$DEST" ]]; then
+                cp "$f" "$DEST"
+                echo "Updated: $DEST"
+              fi
+            fi
+          done
+
+      - name: Commit and push manifest updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add crossplane/
+          if git diff --staged --quiet; then
+            echo "No manifest changes to commit"
+          else
+            git commit -m "ci: update Crossplane s3Key for $(git rev-parse --short HEAD)
+
+            Automated manifest update from Lambda CI pipeline."
+            git push
+          fi
