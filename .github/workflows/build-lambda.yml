@@ -59,7 +59,7 @@ jobs:
             cp -r shared ${{ inputs.source_dir }}/package/
           fi
           cd ${{ inputs.source_dir }}/package
-          zip -r ../../${{ env.ZIP_NAME }} . -q
+          zip -r ${GITHUB_WORKSPACE}/${{ env.ZIP_NAME }} . -q
 
       - name: Upload to S3
         run: |
