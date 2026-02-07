@@ -79,10 +79,8 @@ jobs:
             echo "WARNING: $MANIFEST not found, skipping s3Key update"
             exit 0
           fi
-          # Find the correct s3Key line for this lambda and update it.
-          # The v2 zip name pattern is {lambda_name}_v2.zip — replace with {lambda_name}_{sha}.zip
-          OLD_PATTERN="${{ inputs.lambda_name }}_[a-f0-9]*\.zip\|${{ inputs.lambda_name }}_v2\.zip"
-          sed -i "s|s3Key: ${OLD_PATTERN}|s3Key: ${{ env.ZIP_NAME }}|g" "$MANIFEST"
+          # Replace any s3Key line referencing this lambda's zip (handles indentation and _v2 or _sha suffixes)
+          sed -i "s|s3Key: ${{ inputs.lambda_name }}_.*\.zip|s3Key: ${{ env.ZIP_NAME }}|g" "$MANIFEST"
 
       - name: Upload manifest as artifact
         uses: actions/upload-artifact@v4
