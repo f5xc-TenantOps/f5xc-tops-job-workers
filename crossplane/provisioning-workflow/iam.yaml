@@ -1,0 +1,341 @@
+# IAM Roles and Policies for Provisioning Workflow
+---
+# Set 1: Provisioning Lambda Role (for resource_orchestrator)
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tops-provisioning-lambda-role-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      Name: tops-provisioning-lambda-role-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tops-provisioning-lambda-policy-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/tops-*-v2:*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ssm:GetParameter",
+              "ssm:GetParameters",
+              "ssm:GetParametersByPath"
+            ],
+            "Resource": "arn:aws:ssm:us-east-1:*:parameter/*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "s3:PutObject",
+              "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::tops-deployment-state-v2/*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:PutItem",
+              "dynamodb:GetItem",
+              "dynamodb:UpdateItem",
+              "dynamodb:Query"
+            ],
+            "Resource": [
+              "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2",
+              "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2/index/*"
+            ]
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "lambda:InvokeFunction"
+            ],
+            "Resource": [
+              "arn:aws:lambda:us-east-1:*:function:tops-origin-pool-create-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-http-lb-create-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-waf-policy-create-v2"
+            ]
+          }
+        ]
+      }
+    tags:
+      Name: tops-provisioning-lambda-policy-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: tops-provisioning-lambda-policy-v2-attachment
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    policyArnRef:
+      name: tops-provisioning-lambda-policy-v2
+    roleRef:
+      name: tops-provisioning-lambda-role-v2
+  providerConfigRef:
+    name: default
+---
+# Set 2: Step Function Role
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tops-provisioning-sfn-role-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "states.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      Name: tops-provisioning-sfn-role-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tops-provisioning-sfn-policy-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogDelivery",
+              "logs:GetLogDelivery",
+              "logs:UpdateLogDelivery",
+              "logs:DeleteLogDelivery",
+              "logs:ListLogDeliveries",
+              "logs:PutResourcePolicy",
+              "logs:DescribeResourcePolicies",
+              "logs:DescribeLogGroups"
+            ],
+            "Resource": "*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "lambda:InvokeFunction"
+            ],
+            "Resource": [
+              "arn:aws:lambda:us-east-1:*:function:tops-fetch-job-config-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-ns-create-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-user-create-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-resource-orchestrator-v2"
+            ]
+          }
+        ]
+      }
+    tags:
+      Name: tops-provisioning-sfn-policy-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: tops-provisioning-sfn-policy-v2-attachment
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    policyArnRef:
+      name: tops-provisioning-sfn-policy-v2
+    roleRef:
+      name: tops-provisioning-sfn-role-v2
+  providerConfigRef:
+    name: default
+---
+# Set 3: Stream-to-SFN Lambda Role
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tops-stream-to-sfn-role-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      Name: tops-stream-to-sfn-role-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tops-stream-to-sfn-policy-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/tops-stream-to-sfn-v2:*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:GetRecords",
+              "dynamodb:DescribeStream",
+              "dynamodb:GetShardIterator",
+              "dynamodb:ListStreams"
+            ],
+            "Resource": "arn:aws:dynamodb:us-east-1:*:table/tops-udf-lab-deployment-state-v2/stream/*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:GetItem"
+            ],
+            "Resource": "arn:aws:dynamodb:us-east-1:*:table/tops-udf-lab-config-v2"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "states:StartExecution"
+            ],
+            "Resource": "arn:aws:states:us-east-1:*:stateMachine:tops-provisioning-workflow-v2"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "s3:PutObject",
+              "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::tops-deployment-state-v2/*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:PutItem",
+              "dynamodb:GetItem",
+              "dynamodb:UpdateItem",
+              "dynamodb:Query"
+            ],
+            "Resource": [
+              "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2",
+              "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2/index/*"
+            ]
+          }
+        ]
+      }
+    tags:
+      Name: tops-stream-to-sfn-policy-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: tops-stream-to-sfn-policy-v2-attachment
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-iam
+spec:
+  forProvider:
+    policyArnRef:
+      name: tops-stream-to-sfn-policy-v2
+    roleRef:
+      name: tops-stream-to-sfn-role-v2
+  providerConfigRef:
+    name: default

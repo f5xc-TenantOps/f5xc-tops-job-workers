@@ -1,0 +1,94 @@
+# Certificate Management Lambda Functions - one per tenant variant
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-cert-mgmt-mcn-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: cert-mgmt-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.lambda_handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: cert_mgmt_v2.zip
+    roleRef:
+      name: tops-cert-mgmt-role-v2
+    environment:
+      - variables:
+          SSM_BASE_PATH: /tenantOps-v2/mcn-lab
+          S3_BUCKET: tops-cert-bucket-v2
+          CERT_NAME: lab-mcn-wildcard
+    tags:
+      Name: tops-cert-mgmt-mcn-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-cert-mgmt-app-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: cert-mgmt-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.lambda_handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: cert_mgmt_v2.zip
+    roleRef:
+      name: tops-cert-mgmt-role-v2
+    environment:
+      - variables:
+          SSM_BASE_PATH: /tenantOps-v2/app-lab
+          S3_BUCKET: tops-cert-bucket-v2
+          CERT_NAME: lab-app-wildcard
+    tags:
+      Name: tops-cert-mgmt-app-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-cert-mgmt-sec-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: cert-mgmt-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.lambda_handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: cert_mgmt_v2.zip
+    roleRef:
+      name: tops-cert-mgmt-role-v2
+    environment:
+      - variables:
+          SSM_BASE_PATH: /tenantOps-v2/sec-lab
+          S3_BUCKET: tops-cert-bucket-v2
+          CERT_NAME: lab-sec-wildcard
+    tags:
+      Name: tops-cert-mgmt-sec-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default

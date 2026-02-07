@@ -1,0 +1,87 @@
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tops-udf-helpers-role-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: udf-helpers-iam
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      Name: tops-udf-helpers-role-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tops-udf-helpers-policy-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: udf-helpers-iam
+spec:
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/tops-udf-helper-*-v2:*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ssm:GetParameter",
+              "ssm:GetParameters",
+              "ssm:GetParametersByPath"
+            ],
+            "Resource": "arn:aws:ssm:us-east-1:*:parameter/*"
+          }
+        ]
+      }
+    tags:
+      Name: tops-udf-helpers-policy-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: tops-udf-helpers-policy-v2-attachment
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: udf-helpers-iam
+spec:
+  forProvider:
+    policyArnRef:
+      name: tops-udf-helpers-policy-v2
+    roleRef:
+      name: tops-udf-helpers-role-v2
+  providerConfigRef:
+    name: default

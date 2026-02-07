@@ -1,0 +1,104 @@
+# ACME Client Lambda Functions - one per tenant variant
+# Note: Replace ACME_EMAIL_PLACEHOLDER and ZONE_ID_PLACEHOLDER with actual values
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-acme-client-mcn-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: acme-client-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.lambda_handler
+    timeout: 180
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: acme_client_v2.zip
+    roleRef:
+      name: tops-acme-client-role-v2
+    environment:
+      - variables:
+          CERT_NAME: lab-mcn-wildcard
+          DOMAIN: lab-mcn.f5demos.com
+          S3_BUCKET: tops-cert-bucket-v2
+          EMAIL: ACME_EMAIL_PLACEHOLDER
+          CHALLENGE_RECORD: lab-mcn.challenge.f5demos.com
+          CHALLENGE_ZONE_ID: ZONE_ID_PLACEHOLDER
+    tags:
+      Name: tops-acme-client-mcn-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-acme-client-app-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: acme-client-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.lambda_handler
+    timeout: 180
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: acme_client_v2.zip
+    roleRef:
+      name: tops-acme-client-role-v2
+    environment:
+      - variables:
+          CERT_NAME: lab-app-wildcard
+          DOMAIN: lab-app.f5demos.com
+          S3_BUCKET: tops-cert-bucket-v2
+          EMAIL: ACME_EMAIL_PLACEHOLDER
+          CHALLENGE_RECORD: lab-app.challenge.f5demos.com
+          CHALLENGE_ZONE_ID: ZONE_ID_PLACEHOLDER
+    tags:
+      Name: tops-acme-client-app-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-acme-client-sec-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: acme-client-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.lambda_handler
+    timeout: 180
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: acme_client_v2.zip
+    roleRef:
+      name: tops-acme-client-role-v2
+    environment:
+      - variables:
+          CERT_NAME: lab-sec-wildcard
+          DOMAIN: lab-sec.f5demos.com
+          S3_BUCKET: tops-cert-bucket-v2
+          EMAIL: ACME_EMAIL_PLACEHOLDER
+          CHALLENGE_RECORD: lab-sec.challenge.f5demos.com
+          CHALLENGE_ZONE_ID: ZONE_ID_PLACEHOLDER
+    tags:
+      Name: tops-acme-client-sec-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default

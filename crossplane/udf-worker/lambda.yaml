@@ -1,0 +1,35 @@
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-udf-worker-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: udf_worker_v2.zip
+    roleRef:
+      name: tops-udf-worker-role-v2
+    environment:
+      - variables:
+          DEPLOYMENT_STATE_TABLE: tops-udf-lab-deployment-state-v2
+          LAB_CONFIGURATION_TABLE: tops-udf-lab-config-v2
+          USER_CREATE_LAMBDA_FUNCTION: tops-user-create-v2
+          USER_REMOVE_LAMBDA_FUNCTION: tops-user-remove-v2
+          NS_CREATE_LAMBDA_FUNCTION: tops-ns-create-v2
+          NS_REMOVE_LAMBDA_FUNCTION: tops-ns-remove-v2
+          STATE_BUCKET: tops-deployment-state-v2
+          JOB_STATE_TABLE: tops-job-state-v2
+    tags:
+      Name: tops-udf-worker-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default

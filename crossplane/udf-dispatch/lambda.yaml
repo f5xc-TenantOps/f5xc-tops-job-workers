@@ -1,0 +1,29 @@
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-udf-dispatch-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: udf_dispatch_v2.zip
+    roleRef:
+      name: tops-udf-dispatch-role-v2
+    environment:
+      - variables:
+          DEPLOYMENT_STATE_TABLE: tops-udf-lab-deployment-state-v2
+          UDF_QUEUE: tops-udf-queue-v2
+    tags:
+      Name: tops-udf-dispatch-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
