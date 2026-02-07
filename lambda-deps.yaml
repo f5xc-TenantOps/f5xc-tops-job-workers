@@ -1,0 +1,93 @@
+# lambda-deps.yaml
+# Declarative build configuration for all Lambda functions.
+# CI reads this to determine what to build when files change.
+#
+# Fields:
+#   dir:         Source directory containing function.py + requirements.txt
+#   component:   Maps to crossplane/{component}/lambda.yaml for s3Key updates
+#   uses_shared: If true, rebuild when shared/ changes
+lambdas:
+  udf_dispatch:
+    dir: udf_dispatch
+    component: udf-dispatch
+    uses_shared: true
+  udf_worker:
+    dir: udf_worker
+    component: udf-worker
+    uses_shared: true
+  udf_clean:
+    dir: udf_clean
+    component: udf-cleaner
+    uses_shared: true
+  ns_create:
+    dir: ns_create
+    component: utility-lambdas
+    uses_shared: true
+  ns_remove:
+    dir: ns_remove
+    component: utility-lambdas
+    uses_shared: true
+  user_create:
+    dir: user_create
+    component: utility-lambdas
+    uses_shared: true
+  user_remove:
+    dir: user_remove
+    component: utility-lambdas
+    uses_shared: true
+  fetch_job_config:
+    dir: fetch_job_config
+    component: provisioning-workflow
+    uses_shared: true
+  resource_orchestrator:
+    dir: resource_orchestrator
+    component: provisioning-workflow
+    uses_shared: true
+  origin_pool_create:
+    dir: origin_pool_create
+    component: provisioning-workflow
+    uses_shared: true
+  http_lb_create:
+    dir: http_lb_create
+    component: provisioning-workflow
+    uses_shared: true
+  waf_policy_create:
+    dir: waf_policy_create
+    component: provisioning-workflow
+    uses_shared: true
+  stream_to_stepfunction:
+    dir: stream_to_stepfunction
+    component: provisioning-workflow
+    uses_shared: true
+  acme_client:
+    dir: acme_client
+    component: acme-client
+    uses_shared: true
+  cert_mgmt:
+    dir: cert_mgmt
+    component: cert-mgmt
+    uses_shared: true
+  token_refresh:
+    dir: token_refresh
+    component: token-refresh
+    uses_shared: true
+  example-pre:
+    dir: udf_helpers/example-pre
+    component: udf-helpers
+    uses_shared: false
+  apilab-pre:
+    dir: udf_helpers/apilab-pre
+    component: udf-helpers
+    uses_shared: false
+  botlab-pre:
+    dir: udf_helpers/botlab-pre
+    component: udf-helpers
+    uses_shared: false
+  caaslab-pre:
+    dir: udf_helpers/caaslab-pre
+    component: udf-helpers
+    uses_shared: false
+  waaplab-pre:
+    dir: udf_helpers/waaplab-pre
+    component: udf-helpers
+    uses_shared: false
