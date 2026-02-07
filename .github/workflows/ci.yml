@@ -127,13 +127,12 @@ jobs:
 
       - name: Update s3Key in Crossplane manifests
         run: |
-          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
           pip install pyyaml --quiet
           python3 << 'PYEOF'
-          import yaml, os
+          import json, os
 
-          short_sha = os.environ["SHORT"]
-          matrix = ${{ needs.detect-changes.outputs.matrix }}
+          short_sha = os.environ["GITHUB_SHA"][:7]
+          matrix = json.loads(os.environ["MATRIX"])
 
           for entry in matrix["include"]:
               name = entry["lambda_name"]
@@ -167,7 +166,7 @@ jobs:
               print(f"  {name}: updated {updated} s3Key(s) in {manifest}")
           PYEOF
         env:
-          SHORT: ${{ github.sha }}
+          MATRIX: ${{ needs.detect-changes.outputs.matrix }}
 
       - name: Commit and push manifest updates
         run: |
