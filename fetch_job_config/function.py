@@ -102,7 +102,7 @@ def fetch_config(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, A
     for resource in job_config.resources:
         substituted_resources.append({
             "type": resource.type,
-            "depends_on": resource.depends_on,
+            "depends_on": substitute_variables(resource.depends_on, variables),
             "metadata": substitute_variables(resource.metadata, variables),
             "spec": substitute_variables(resource.spec, variables),
         })
