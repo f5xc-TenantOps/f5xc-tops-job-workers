@@ -51,6 +51,10 @@ lambdas:
     dir: http_lb_create
     component: provisioning-workflow
     uses_shared: true
+  tcp_lb_create:
+    dir: tcp_lb_create
+    component: provisioning-workflow
+    uses_shared: true
   waf_policy_create:
     dir: waf_policy_create
     component: provisioning-workflow

@@ -108,8 +108,8 @@ def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: Struc
     resource_name = resource["metadata"]["name"]
     step = logger.with_step(f"execute_{resource_type}")
 
-    # Determine lambda function name
-    function_name = f"{LAMBDA_PREFIX}{resource_type}_create"
+    # Determine lambda function name (underscores in type become hyphens in function name)
+    function_name = f"{LAMBDA_PREFIX}{resource_type.replace('_', '-')}-create"
 
     payload = {
         "ssm_base_path": ssm_base_path,

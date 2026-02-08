@@ -91,6 +91,7 @@ spec:
             "Resource": [
               "arn:aws:lambda:us-east-1:*:function:tops-origin-pool-create-v2",
               "arn:aws:lambda:us-east-1:*:function:tops-http-lb-create-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-tcp-lb-create-v2",
               "arn:aws:lambda:us-east-1:*:function:tops-waf-policy-create-v2"
             ]
           }
@@ -289,9 +290,19 @@ spec:
           {
             "Effect": "Allow",
             "Action": [
+              "dynamodb:Scan"
+            ],
+            "Resource": "arn:aws:dynamodb:us-east-1:*:table/tops-udf-lab-deployment-state-v2"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
               "states:StartExecution"
             ],
-            "Resource": "arn:aws:states:us-east-1:*:stateMachine:tops-provisioning-workflow-v2"
+            "Resource": [
+              "arn:aws:states:us-east-1:*:stateMachine:tops-provisioning-workflow-v2",
+              "arn:aws:states:us-east-1:*:stateMachine:tops-cleanup-workflow-v2"
+            ]
           },
           {
             "Effect": "Allow",
@@ -313,6 +324,13 @@ spec:
               "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2",
               "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2/index/*"
             ]
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "sqs:SendMessage"
+            ],
+            "Resource": "arn:aws:sqs:us-east-1:*:tops-udf-dlq-v2"
           }
         ]
       }
