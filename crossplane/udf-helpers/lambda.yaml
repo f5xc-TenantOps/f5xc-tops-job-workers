@@ -16,7 +16,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: example-pre_1f4c445.zip
+    s3Key: example-pre_c204269.zip
     roleRef:
       name: tops-udf-helpers-role-v2
     environment:
@@ -45,7 +45,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: apilab-pre_1f4c445.zip
+    s3Key: apilab-pre_c204269.zip
     roleRef:
       name: tops-udf-helpers-role-v2
     environment:
@@ -74,7 +74,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: botlab-pre_1f4c445.zip
+    s3Key: botlab-pre_c204269.zip
     roleRef:
       name: tops-udf-helpers-role-v2
     environment:
@@ -103,7 +103,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: caaslab-pre_1f4c445.zip
+    s3Key: caaslab-pre_c204269.zip
     roleRef:
       name: tops-udf-helpers-role-v2
     environment:
@@ -132,7 +132,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: waaplab-pre_1f4c445.zip
+    s3Key: waaplab-pre_c204269.zip
     roleRef:
       name: tops-udf-helpers-role-v2
     environment:
