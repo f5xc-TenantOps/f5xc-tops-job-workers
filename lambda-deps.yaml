@@ -35,8 +35,8 @@ lambdas:
     dir: user_remove
     component: utility-lambdas
     uses_shared: true
-  fetch_job_config:
-    dir: fetch_job_config
+  prepare_job_config:
+    dir: prepare_job_config
     component: provisioning-workflow
     uses_shared: true
   resource_orchestrator:

@@ -1,10 +1,10 @@
 {
   "Comment": "TenantOps General Provisioning Workflow",
-  "StartAt": "FetchJobConfig",
+  "StartAt": "PrepareJobConfig",
   "States": {
-    "FetchJobConfig": {
+    "PrepareJobConfig": {
       "Type": "Task",
-      "Resource": "${FetchJobConfigLambdaArn}",
+      "Resource": "${PrepareJobConfigLambdaArn}",
       "ResultPath": "$",
       "Next": "InitializeJobState",
       "Catch": [

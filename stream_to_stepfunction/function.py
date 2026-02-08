@@ -105,7 +105,7 @@ def get_lab_config(lab_id: str, logger: StructuredLogger) -> Dict[str, Any]:
 def build_job_config(lab_config: Dict[str, Any]) -> Dict[str, Any]:
     """Build inline job_config from enriched lab config.
 
-    Translates the lab config item into the format expected by fetch_job_config.
+    Translates the lab config item into the format expected by prepare_job_config.
     """
     return {
         "job_id": lab_config.get("job_id", lab_config["lab_id"]),

@@ -10,7 +10,7 @@ Before deploying, replace these placeholders with actual Lambda ARNs:
 
 | Placeholder | Lambda |
 |-------------|--------|
-| `${FetchJobConfigLambdaArn}` | fetch_job_config |
+| `${PrepareJobConfigLambdaArn}` | prepare_job_config |
 | `${NsCreateLambdaArn}` | ns_create |
 | `${UserCreateLambdaArn}` | user_create |
 | `${ResourceOrchestratorLambdaArn}` | resource_orchestrator |
@@ -22,7 +22,7 @@ Before deploying, substitute the placeholder ARNs with actual values.
 **Option 1: Using environment variables and envsubst**
 
 ```bash
-export FetchJobConfigLambdaArn="arn:aws:lambda:us-east-1:ACCOUNT:function:tops-fetch-job-config"
+export PrepareJobConfigLambdaArn="arn:aws:lambda:us-east-1:ACCOUNT:function:tops-prepare-job-config"
 export NsCreateLambdaArn="arn:aws:lambda:us-east-1:ACCOUNT:function:tops-ns-create"
 export UserCreateLambdaArn="arn:aws:lambda:us-east-1:ACCOUNT:function:tops-user-create"
 export ResourceOrchestratorLambdaArn="arn:aws:lambda:us-east-1:ACCOUNT:function:tops-resource-orchestrator"
@@ -33,7 +33,7 @@ envsubst < provisioning-workflow.json > provisioning-workflow-deployed.json
 **Option 2: Using sed**
 
 ```bash
-sed -e 's|\${FetchJobConfigLambdaArn}|arn:aws:lambda:us-east-1:ACCOUNT:function:tops-fetch-job-config|g' \
+sed -e 's|\${PrepareJobConfigLambdaArn}|arn:aws:lambda:us-east-1:ACCOUNT:function:tops-prepare-job-config|g' \
     -e 's|\${NsCreateLambdaArn}|arn:aws:lambda:us-east-1:ACCOUNT:function:tops-ns-create|g' \
     -e 's|\${UserCreateLambdaArn}|arn:aws:lambda:us-east-1:ACCOUNT:function:tops-user-create|g' \
     -e 's|\${ResourceOrchestratorLambdaArn}|arn:aws:lambda:us-east-1:ACCOUNT:function:tops-resource-orchestrator|g' \
@@ -54,7 +54,7 @@ aws stepfunctions create-state-machine \
 
 ```bash
 # 1. Set environment variables with actual Lambda ARNs
-export FetchJobConfigLambdaArn="arn:aws:lambda:us-east-1:123456789012:function:tops-fetch-job-config"
+export PrepareJobConfigLambdaArn="arn:aws:lambda:us-east-1:123456789012:function:tops-prepare-job-config"
 export NsCreateLambdaArn="arn:aws:lambda:us-east-1:123456789012:function:tops-ns-create"
 export UserCreateLambdaArn="arn:aws:lambda:us-east-1:123456789012:function:tops-user-create"
 export ResourceOrchestratorLambdaArn="arn:aws:lambda:us-east-1:123456789012:function:tops-resource-orchestrator"
