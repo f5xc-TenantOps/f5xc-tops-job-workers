@@ -54,6 +54,7 @@ spec:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
           JOB_STATE_TABLE: tops-job-state-v2
           LAMBDA_PREFIX: "tops-"
+          LAMBDA_SUFFIX: "-v2"
     tags:
       Name: tops-resource-orchestrator-v2
       Environment: production

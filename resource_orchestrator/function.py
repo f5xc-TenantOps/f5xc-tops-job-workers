@@ -21,6 +21,7 @@ lambda_client = None
 
 # Lambda function name prefix (e.g., "tops-" in prod, "tops-dev-" in dev)
 LAMBDA_PREFIX = os.getenv("LAMBDA_PREFIX", "tops-")
+LAMBDA_SUFFIX = os.getenv("LAMBDA_SUFFIX", "")
 
 # Timeout for Lambda invoke calls (default 5 minutes)
 LAMBDA_INVOKE_TIMEOUT_SECONDS = int(os.getenv("LAMBDA_INVOKE_TIMEOUT_SECONDS", "300"))
@@ -109,7 +110,7 @@ def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: Struc
     step = logger.with_step(f"execute_{resource_type}")
 
     # Determine lambda function name (underscores in type become hyphens in function name)
-    function_name = f"{LAMBDA_PREFIX}{resource_type.replace('_', '-')}-create"
+    function_name = f"{LAMBDA_PREFIX}{resource_type.replace('_', '-')}-create{LAMBDA_SUFFIX}"
 
     payload = {
         "ssm_base_path": ssm_base_path,

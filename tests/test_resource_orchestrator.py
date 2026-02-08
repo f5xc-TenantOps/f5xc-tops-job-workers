@@ -1,3 +1,4 @@
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -20,6 +21,7 @@ def test_orchestrator_builds_execution_levels():
     assert len(levels[1]) == 1  # lb after
 
 
+@patch("resource_orchestrator.function.LAMBDA_SUFFIX", "-v2")
 @patch("resource_orchestrator.function._get_lambda_client")
 def test_orchestrator_invokes_resource_lambdas(mock_get_client):
     """Orchestrator invokes correct lambda for each resource type."""
@@ -44,7 +46,7 @@ def test_orchestrator_invokes_resource_lambdas(mock_get_client):
 
     mock_lambda.invoke.assert_called_once()
     call_args = mock_lambda.invoke.call_args
-    assert "origin_pool_create" in call_args.kwargs["FunctionName"]
+    assert call_args.kwargs["FunctionName"] == "tops-origin-pool-create-v2"
 
 
 def test_orchestrator_empty_resources():
