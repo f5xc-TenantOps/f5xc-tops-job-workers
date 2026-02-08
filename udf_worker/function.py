@@ -268,9 +268,14 @@ def process_remove(record: dict, logger: StructuredLogger):
         post_lambda = lab_info.get("post_lambda")
 
         # Check if another deployment exists for this user in the same tenant
-        if check_existing_user_in_tenant(email, tenant_url, logger):
+        skip_user_removal = False
+        if tenant_url is None:
+            step_logger.warn("tenant_url is missing from removed record, skipping duplicate user check", dep_id=dep_id, email=email)
+        elif check_existing_user_in_tenant(email, tenant_url, logger):
             step_logger.info("Skipping user removal: Another active deployment exists", email=email, tenant_url=tenant_url)
-        else:
+            skip_user_removal = True
+
+        if not skip_user_removal:
             # Step 1: Remove User if it was successfully created
             if create_user == "SUCCESS":
                 if not USER_REMOVE_LAMBDA:

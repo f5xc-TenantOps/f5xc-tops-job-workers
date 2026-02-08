@@ -122,7 +122,6 @@ def create_http_load_balancer(
                     "tls_config": {"default_security": {}},
                     "certificates": [
                         {
-                            "tenant": "f5-xc-lab-sec-lpuwkdtb",
                             "namespace": "shared",
                             "name": cert_name,
                             "kind": "certificate",
@@ -134,7 +133,6 @@ def create_http_load_balancer(
             "default_route_pools": [
                 {
                     "pool": {
-                        "tenant": "f5-xc-lab-sec-lpuwkdtb",
                         "namespace": namespace,
                         "name": origin_name,
                         "kind": "origin_pool",
@@ -167,8 +165,8 @@ def main(payload: dict, logger: StructuredLogger):
         raise PermanentError("Missing required environment variable: ENV")
 
     # Set domain and certificate based on ENV
-    base_domain = f"lab-sec{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
-    cert_name = f"lab-sec-wildcard{'-dev' if env.lower() == 'dev' else ''}"
+    base_domain = f"lab-mcn{'-dev' if env.lower() == 'dev' else ''}.f5demos.com"
+    cert_name = f"lab-mcn-wildcard{'-dev' if env.lower() == 'dev' else ''}"
 
     ssm_base_path = payload["ssm_base_path"]
     petname = payload["petname"]
@@ -220,7 +218,7 @@ if __name__ == "__main__":
         function_name = "example-pre"
 
     test_payload = {
-        "ssm_base_path": "/tenantOps/sec-lab",
+        "ssm_base_path": "/tenantOps/mcn-lab",
         "petname": "snarky-petname",
     }
     handler(test_payload, MockContext())
