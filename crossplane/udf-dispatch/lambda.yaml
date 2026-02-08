@@ -13,7 +13,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: udf_dispatch_c204269.zip
+    s3Key: udf_dispatch_5b11d6b.zip
     roleRef:
       name: tops-udf-dispatch-role-v2
     environment:
