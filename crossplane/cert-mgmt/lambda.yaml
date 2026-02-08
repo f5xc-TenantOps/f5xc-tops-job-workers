@@ -15,7 +15,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: cert_mgmt_e2efb3e.zip
+    s3Key: cert_mgmt_1f4c445.zip
     roleRef:
       name: tops-cert-mgmt-role-v2
     environment:
@@ -46,7 +46,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: cert_mgmt_e2efb3e.zip
+    s3Key: cert_mgmt_1f4c445.zip
     roleRef:
       name: tops-cert-mgmt-role-v2
     environment:
@@ -77,7 +77,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: cert_mgmt_e2efb3e.zip
+    s3Key: cert_mgmt_1f4c445.zip
     roleRef:
       name: tops-cert-mgmt-role-v2
     environment:

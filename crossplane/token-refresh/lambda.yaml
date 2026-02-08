@@ -14,7 +14,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: token_refresh_e2efb3e.zip
+    s3Key: token_refresh_1f4c445.zip
     roleRef:
       name: tops-token-refresh-role-v2
     environment:
@@ -43,7 +43,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: token_refresh_e2efb3e.zip
+    s3Key: token_refresh_1f4c445.zip
     roleRef:
       name: tops-token-refresh-role-v2
     environment:
@@ -72,7 +72,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: token_refresh_e2efb3e.zip
+    s3Key: token_refresh_1f4c445.zip
     roleRef:
       name: tops-token-refresh-role-v2
     environment:

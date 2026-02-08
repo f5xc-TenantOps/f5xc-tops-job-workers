@@ -14,7 +14,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: fetch_job_config_e2efb3e.zip
+    s3Key: fetch_job_config_1f4c445.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -44,7 +44,7 @@ spec:
     timeout: 300
     memorySize: 256
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: resource_orchestrator_e2efb3e.zip
+    s3Key: resource_orchestrator_1f4c445.zip
     roleRef:
       name: tops-provisioning-lambda-role-v2
     environment:
@@ -75,7 +75,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: origin_pool_create_e2efb3e.zip
+    s3Key: origin_pool_create_1f4c445.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -105,7 +105,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: http_lb_create_e2efb3e.zip
+    s3Key: http_lb_create_1f4c445.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -135,7 +135,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: waf_policy_create_e2efb3e.zip
+    s3Key: waf_policy_create_1f4c445.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -165,7 +165,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: stream_to_stepfunction_e2efb3e.zip
+    s3Key: stream_to_stepfunction_1f4c445.zip
     roleRef:
       name: tops-stream-to-sfn-role-v2
     environment:
