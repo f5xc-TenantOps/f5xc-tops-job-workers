@@ -20,6 +20,8 @@ LAMBDA_LOG_PREFIX = os.environ.get("LAMBDA_LOG_PREFIX", "/aws/lambda/tops-")
 SFN_LOG_PREFIX = os.environ.get("SFN_LOG_PREFIX", "/aws/states/tops-")
 LOOKBACK_MINUTES = int(os.environ.get("LOOKBACK_MINUTES", "6"))
 
+SKIP_PREFIXES = ("START RequestId:", "END RequestId:", "REPORT RequestId:")
+
 
 def discover_log_groups(prefix):
     """Return all log group names matching the given prefix."""
@@ -42,6 +44,9 @@ def collect_events(log_group, start_time, end_time):
         interleaved=True,
     ):
         for event in page.get("events", []):
+            msg = event.get("message", "")
+            if msg.startswith(SKIP_PREFIXES):
+                continue
             events.append(
                 {
                     "timestamp": datetime.fromtimestamp(
