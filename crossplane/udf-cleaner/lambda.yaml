@@ -10,7 +10,7 @@ spec:
   forProvider:
     region: us-east-1
     runtime: python3.11
-    handler: function.lambda_handler
+    handler: function.handler
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
