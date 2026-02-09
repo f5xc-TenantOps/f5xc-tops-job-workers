@@ -1,0 +1,32 @@
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-log-exporter-v2
+  labels:
+    app.kubernetes.io/name: tops-observability
+    app.kubernetes.io/component: log-exporter-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.handler
+    timeout: 240
+    memorySize: 256
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: log_exporter_0000000.zip
+    roleRef:
+      name: tops-log-exporter-role-v2
+    environment:
+      - variables:
+          EXPORT_BUCKET: tops-cloudwatch-export-v2
+          LAMBDA_LOG_PREFIX: /aws/lambda/tops-
+          SFN_LOG_PREFIX: /aws/states/tops-
+          LOOKBACK_MINUTES: "6"
+    tags:
+      Name: tops-log-exporter-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-observability
+  providerConfigRef:
+    name: default

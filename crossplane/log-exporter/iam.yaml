@@ -1,0 +1,103 @@
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Role
+metadata:
+  name: tops-log-exporter-role-v2
+  labels:
+    app.kubernetes.io/name: tops-observability
+    app.kubernetes.io/component: log-exporter-iam
+spec:
+  forProvider:
+    assumeRolePolicy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      Name: tops-log-exporter-role-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-observability
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: Policy
+metadata:
+  name: tops-log-exporter-policy-v2
+  labels:
+    app.kubernetes.io/name: tops-observability
+    app.kubernetes.io/component: log-exporter-iam
+spec:
+  forProvider:
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "OwnLogs",
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/tops-log-exporter-v2:*"
+          },
+          {
+            "Sid": "DescribeAllLogGroups",
+            "Effect": "Allow",
+            "Action": "logs:DescribeLogGroups",
+            "Resource": "*"
+          },
+          {
+            "Sid": "ReadTargetLogs",
+            "Effect": "Allow",
+            "Action": [
+              "logs:FilterLogEvents",
+              "logs:GetLogEvents"
+            ],
+            "Resource": [
+              "arn:aws:logs:us-east-1:430171053948:log-group:/aws/lambda/tops-*:*",
+              "arn:aws:logs:us-east-1:430171053948:log-group:/aws/states/tops-*:*"
+            ]
+          },
+          {
+            "Sid": "WriteExportBucket",
+            "Effect": "Allow",
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::tops-cloudwatch-export-v2/*"
+          }
+        ]
+      }
+    tags:
+      Name: tops-log-exporter-policy-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-observability
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.aws.upbound.io/v1beta1
+kind: RolePolicyAttachment
+metadata:
+  name: tops-log-exporter-policy-v2-attachment
+  labels:
+    app.kubernetes.io/name: tops-observability
+    app.kubernetes.io/component: log-exporter-iam
+spec:
+  forProvider:
+    policyArnRef:
+      name: tops-log-exporter-policy-v2
+    roleRef:
+      name: tops-log-exporter-role-v2
+  providerConfigRef:
+    name: default

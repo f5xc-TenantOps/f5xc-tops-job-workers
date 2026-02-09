@@ -95,3 +95,7 @@ lambdas:
     dir: udf_helpers/waaplab-pre
     component: udf-helpers
     uses_shared: false
+  log_exporter:
+    dir: log_exporter
+    component: log-exporter
+    uses_shared: false
