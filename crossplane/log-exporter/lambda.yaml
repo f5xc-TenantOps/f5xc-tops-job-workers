@@ -14,7 +14,7 @@ spec:
     timeout: 240
     memorySize: 256
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: log_exporter_be8d4b9.zip
+    s3Key: log_exporter_06fc81d.zip
     roleRef:
       name: tops-log-exporter-role-v2
     environment:
