@@ -16,7 +16,7 @@ spec:
     timeout: 180
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: acme_client_2bc4e02.zip
+    s3Key: acme_client_be8d4b9.zip
     roleRef:
       name: tops-acme-client-role-v2
     environment:
@@ -50,7 +50,7 @@ spec:
     timeout: 180
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: acme_client_2bc4e02.zip
+    s3Key: acme_client_be8d4b9.zip
     roleRef:
       name: tops-acme-client-role-v2
     environment:
@@ -84,7 +84,7 @@ spec:
     timeout: 180
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: acme_client_2bc4e02.zip
+    s3Key: acme_client_be8d4b9.zip
     roleRef:
       name: tops-acme-client-role-v2
     environment:
