@@ -75,7 +75,7 @@ def _build_s3_state(
     if isinstance(status, JobStatus):
         status = status.value
 
-    return {
+    state = {
         "dep_id": job_state.dep_id,
         "lab_id": lab_id,
         "petname": job_state.petname,
@@ -86,6 +86,11 @@ def _build_s3_state(
         "outputs": outputs or {},
         "errors": errors or [],
     }
+
+    if job_state.tenant_url:
+        state["tenant_url"] = job_state.tenant_url
+
+    return state
 
 
 def _build_dynamodb_item(job_state: JobState) -> Dict[str, Any]:
