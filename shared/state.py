@@ -71,6 +71,17 @@ def _build_s3_state(
                 step_entry[k] = v
         steps[step_name] = step_entry
 
+    # Convert resources to S3 format (same pattern as steps)
+    resources = {}
+    for res_name, res_data in job_state.resources.items():
+        res_entry = {}
+        for k, v in res_data.items():
+            if isinstance(v, StepStatus):
+                res_entry[k] = v.value
+            else:
+                res_entry[k] = v
+        resources[res_name] = res_entry
+
     status = job_state.status
     if isinstance(status, JobStatus):
         status = status.value
@@ -83,6 +94,7 @@ def _build_s3_state(
         "status": status,
         "updated_at": now,
         "steps": steps,
+        "resources": resources,
         "outputs": outputs or {},
         "errors": errors or [],
     }
