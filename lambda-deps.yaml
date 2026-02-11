@@ -63,6 +63,10 @@ lambdas:
     dir: stream_to_stepfunction
     component: provisioning-workflow
     uses_shared: true
+  finalize_job:
+    dir: finalize_job
+    component: provisioning-workflow
+    uses_shared: true
   acme_client:
     dir: acme_client
     component: acme-client

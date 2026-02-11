@@ -149,9 +149,12 @@
         "status": "COMPLETED",
         "job_execution_id.$": "$.job_execution_id",
         "email.$": "$.email",
-        "petname.$": "$.petname"
+        "petname.$": "$.petname",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id",
+        "dep_id.$": "$.dep_id"
       },
-      "End": true
+      "Next": "FinalizeJob"
     },
     "MarkPartial": {
       "Type": "Pass",
@@ -160,17 +163,28 @@
         "job_execution_id.$": "$.job_execution_id",
         "email.$": "$.email",
         "petname.$": "$.petname",
-        "resources_result.$": "$.resources_result.body"
+        "resources_result.$": "$.resources_result.body",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id",
+        "dep_id.$": "$.dep_id"
       },
-      "End": true
+      "Next": "FinalizeJob"
     },
     "MarkFailed": {
       "Type": "Pass",
       "Parameters": {
         "status": "FAILED",
         "job_execution_id.$": "$.job_execution_id",
-        "error.$": "$.error"
+        "error.$": "$.error",
+        "job_state.$": "$.job_state",
+        "lab_id.$": "$.lab_id",
+        "dep_id.$": "$.dep_id"
       },
+      "Next": "FinalizeJob"
+    },
+    "FinalizeJob": {
+      "Type": "Task",
+      "Resource": "${FinalizeJobLambdaArn}",
       "End": true
     }
   }
