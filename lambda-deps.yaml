@@ -1,5 +1,4 @@
-# lambda-deps.yaml
-# Declarative build configuration for all Lambda functions.
+# lambda-deps.yaml — Declarative build configuration for all Lambda functions.
 # CI reads this to determine what to build when files change.
 #
 # Fields:
