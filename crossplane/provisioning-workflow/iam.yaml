@@ -79,7 +79,8 @@ spec:
               "arn:aws:lambda:us-east-1:*:function:tops-origin-pool-create-v2",
               "arn:aws:lambda:us-east-1:*:function:tops-http-lb-create-v2",
               "arn:aws:lambda:us-east-1:*:function:tops-tcp-lb-create-v2",
-              "arn:aws:lambda:us-east-1:*:function:tops-waf-policy-create-v2"
+              "arn:aws:lambda:us-east-1:*:function:tops-waf-policy-create-v2",
+              "arn:aws:lambda:us-east-1:*:function:tops-securemesh-site-v2-create-v2"
             ]
           }
         ]
