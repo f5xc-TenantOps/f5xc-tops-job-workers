@@ -225,11 +225,15 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
                     "error": "dependency failed"
                 }
                 failed_resources.add(resource_name)
+                if job_state:
+                    job_state.update_resource(resource_name, StepStatus.SKIPPED, type=resource["type"], error="dependency failed")
                 continue
 
             try:
                 result = execute_resource(resource, ssm_base_path, logger, job_state, lab_id)
                 results[resource_name] = result
+                if job_state:
+                    job_state.update_resource(resource_name, StepStatus.SUCCESS, type=resource["type"])
             except Exception as e:
                 results[resource_name] = {
                     "status": "failed",
@@ -238,6 +242,8 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
                     "error": str(e)
                 }
                 failed_resources.add(resource_name)
+                if job_state:
+                    job_state.update_resource(resource_name, StepStatus.FAILED, type=resource["type"], error=str(e))
 
     # Check for any failures and update state
     failed = [r for r in results.values() if r.get("status") == "failed"]
@@ -246,13 +252,32 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
         if state_manager and job_state:
             job_state.update_step("resources", StepStatus.FAILED, error=f"{len(failed)} resources failed")
             state_manager.update_state(job_state, lab_id=lab_id)
-        return {"status": "partial", "resources": results}
+        result = {"status": "partial", "resources": results}
+    else:
+        step.info("All resources created successfully")
+        if state_manager and job_state:
+            job_state.update_step("resources", StepStatus.SUCCESS)
+            state_manager.update_state(job_state, lab_id=lab_id)
+        result = {"status": "success", "resources": results}
 
-    step.info("All resources created successfully")
-    if state_manager and job_state:
-        job_state.update_step("resources", StepStatus.SUCCESS)
-        state_manager.update_state(job_state, lab_id=lab_id)
-    return {"status": "success", "resources": results}
+    # Include updated job_state so the workflow can pass it to FinalizeJob
+    if job_state:
+        result["job_state"] = {
+            "job_execution_id": job_state.job_execution_id,
+            "job_id": job_state.job_id,
+            "trigger_source": job_state.trigger_source,
+            "email": job_state.email,
+            "petname": job_state.petname,
+            "dep_id": job_state.dep_id,
+            "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
+            "steps": job_state.steps,
+            "resources": {
+                name: {k: v.value if isinstance(v, StepStatus) else v for k, v in data.items()}
+                for name, data in job_state.resources.items()
+            },
+        }
+
+    return result
 
 
 @lambda_handler

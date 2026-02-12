@@ -133,7 +133,7 @@
         {
           "Variable": "$.resources_result.body.status",
           "StringEquals": "failed",
-          "Next": "MarkFailed"
+          "Next": "MarkResourcesFailed"
         },
         {
           "Variable": "$.resources_result.body.status",
@@ -141,7 +141,7 @@
           "Next": "MarkPartial"
         }
       ],
-      "Default": "MarkComplete"
+      "Default": "MarkResourcesComplete"
     },
     "MarkComplete": {
       "Type": "Pass",
@@ -156,6 +156,19 @@
       },
       "Next": "FinalizeJob"
     },
+    "MarkResourcesComplete": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "COMPLETED",
+        "job_execution_id.$": "$.job_execution_id",
+        "email.$": "$.email",
+        "petname.$": "$.petname",
+        "job_state.$": "$.resources_result.body.job_state",
+        "lab_id.$": "$.lab_id",
+        "dep_id.$": "$.dep_id"
+      },
+      "Next": "FinalizeJob"
+    },
     "MarkPartial": {
       "Type": "Pass",
       "Parameters": {
@@ -164,7 +177,19 @@
         "email.$": "$.email",
         "petname.$": "$.petname",
         "resources_result.$": "$.resources_result.body",
-        "job_state.$": "$.job_state",
+        "job_state.$": "$.resources_result.body.job_state",
+        "lab_id.$": "$.lab_id",
+        "dep_id.$": "$.dep_id"
+      },
+      "Next": "FinalizeJob"
+    },
+    "MarkResourcesFailed": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "FAILED",
+        "job_execution_id.$": "$.job_execution_id",
+        "error.$": "$.resources_result.body",
+        "job_state.$": "$.resources_result.body.job_state",
         "lab_id.$": "$.lab_id",
         "dep_id.$": "$.dep_id"
       },
