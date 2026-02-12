@@ -325,6 +325,39 @@ class XCClient:
         """Get an app firewall."""
         return self.get(f"/api/config/namespaces/{namespace}/app_firewalls/{name}")
 
+    # --- SecureMesh Site v2 Operations ---
+
+    def create_securemesh_site_v2(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a SecureMesh Site v2 (always in system namespace)."""
+        return self.post("/api/config/namespaces/system/securemesh_site_v2s", payload)
+
+    def delete_securemesh_site_v2(self, name: str) -> Dict[str, Any]:
+        """Delete a SecureMesh Site v2 by name."""
+        return self.delete(f"/api/config/namespaces/system/securemesh_site_v2s/{name}")
+
+    # --- Registration Token Operations ---
+
+    def create_registration_token(self, site_name: str, token_name: str) -> Dict[str, Any]:
+        """Create a JWT registration token for a site.
+
+        Args:
+            site_name: Name of the site to create the token for.
+            token_name: Name for the token (e.g., jwt-token-{timestamp_ms}).
+
+        Returns:
+            Response dict. The JWT is in response["spec"]["content"].
+        """
+        payload = {
+            "metadata": {
+                "name": token_name
+            },
+            "spec": {
+                "type": "JWT",
+                "site_name": site_name
+            }
+        }
+        return self.post("/api/register/namespaces/system/tokens", payload)
+
     # --- Certificate Operations ---
 
     def create_certificate(
