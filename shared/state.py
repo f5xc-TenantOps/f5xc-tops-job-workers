@@ -413,3 +413,28 @@ def add_output(
 ) -> None:
     """Add output using the default manager."""
     get_state_manager().add_output(job_state, key, value, lab_id=lab_id)
+
+
+def serialize_job_state(job_state: JobState) -> Dict[str, Any]:
+    """Serialize JobState to a dict for passing through Step Functions.
+
+    Lambdas should include this in their return value so the workflow
+    can forward the accumulated state to subsequent steps.
+    """
+    return {
+        "job_execution_id": job_state.job_execution_id,
+        "job_id": job_state.job_id,
+        "trigger_source": job_state.trigger_source,
+        "email": job_state.email,
+        "petname": job_state.petname,
+        "dep_id": job_state.dep_id,
+        "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
+        "steps": {
+            name: {k: v.value if isinstance(v, StepStatus) else v for k, v in data.items()}
+            for name, data in job_state.steps.items()
+        },
+        "resources": {
+            name: {k: v.value if isinstance(v, StepStatus) else v for k, v in data.items()}
+            for name, data in job_state.resources.items()
+        },
+    }

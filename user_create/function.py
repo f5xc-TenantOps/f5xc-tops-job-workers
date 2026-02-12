@@ -6,7 +6,7 @@ from shared.errors import PermanentError, ResourceExistsError
 from shared.job_state import StepStatus
 from shared.logging import StructuredLogger
 from shared.ssm import get_ssm_parameters
-from shared.state import get_job_state_from_event, StateManager
+from shared.state import get_job_state_from_event, serialize_job_state, StateManager
 from shared.xc_client import XCClient
 
 
@@ -83,7 +83,10 @@ def handler(event: dict, context, logger: StructuredLogger):
                     job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, email=email
                 )
 
-            return f"User '{email}' created successfully."
+            result = {"message": f"User '{email}' created successfully."}
+            if job_state:
+                result["job_state"] = serialize_job_state(job_state)
+            return result
 
         except ResourceExistsError:
             step_logger.info("User already exists, checking for updates", email=email)
@@ -119,7 +122,10 @@ def handler(event: dict, context, logger: StructuredLogger):
                             job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, email=email
                         )
 
-                    return f"User '{email}' updated successfully."
+                    result = {"message": f"User '{email}' updated successfully."}
+                    if job_state:
+                        result["job_state"] = serialize_job_state(job_state)
+                    return result
                 else:
                     step_logger.info("No changes detected, skipping update", email=email)
 
@@ -129,7 +135,10 @@ def handler(event: dict, context, logger: StructuredLogger):
                             job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, email=email
                         )
 
-                    return f"User '{email}' already exists with the correct settings. No update needed."
+                    result = {"message": f"User '{email}' already exists with the correct settings. No update needed."}
+                    if job_state:
+                        result["job_state"] = serialize_job_state(job_state)
+                    return result
             else:
                 raise PermanentError(f"User '{email}' reported existing but was not found in the user list.")
 

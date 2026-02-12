@@ -9,7 +9,7 @@ from shared.errors import PermanentError, ResourceExistsError, TransientError
 from shared.job_state import StepStatus
 from shared.logging import StructuredLogger
 from shared.ssm import get_ssm_parameters
-from shared.state import get_job_state_from_event, StateManager
+from shared.state import get_job_state_from_event, serialize_job_state, StateManager
 from shared.xc_client import XCClient
 
 
@@ -102,7 +102,10 @@ def handler(event: dict, context, logger: StructuredLogger):
                 job_state, "namespace", StepStatus.SUCCESS, lab_id=lab_id, name=namespace_name
             )
 
-        return f"{create_result} | {wait_result}"
+        result = {"message": f"{create_result} | {wait_result}"}
+        if job_state:
+            result["job_state"] = serialize_job_state(job_state)
+        return result
 
     except Exception as e:
         # Mark step failed

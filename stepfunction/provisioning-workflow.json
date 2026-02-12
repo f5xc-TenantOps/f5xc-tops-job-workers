@@ -53,7 +53,7 @@
         "lab_id.$": "$.lab_id"
       },
       "ResultPath": "$.namespace_result",
-      "Next": "CheckUser",
+      "Next": "UpdateJobStateAfterNamespace",
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -61,6 +61,12 @@
           "Next": "CheckUser"
         }
       ]
+    },
+    "UpdateJobStateAfterNamespace": {
+      "Type": "Pass",
+      "InputPath": "$.namespace_result.body.job_state",
+      "ResultPath": "$.job_state",
+      "Next": "CheckUser"
     },
     "CheckUser": {
       "Type": "Choice",
@@ -87,7 +93,7 @@
         "lab_id.$": "$.lab_id"
       },
       "ResultPath": "$.user_result",
-      "Next": "CheckResources",
+      "Next": "UpdateJobStateAfterUser",
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -95,6 +101,12 @@
           "Next": "CheckResources"
         }
       ]
+    },
+    "UpdateJobStateAfterUser": {
+      "Type": "Pass",
+      "InputPath": "$.user_result.body.job_state",
+      "ResultPath": "$.job_state",
+      "Next": "CheckResources"
     },
     "CheckResources": {
       "Type": "Choice",

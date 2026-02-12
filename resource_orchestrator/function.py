@@ -13,7 +13,7 @@ from shared.errors import PermanentError, TransientError
 from shared.job_config import ResourceDefinition
 from shared.job_state import JobState, JobStatus, StepStatus
 from shared.logging import StructuredLogger
-from shared.state import StateManager, get_job_state_from_event
+from shared.state import StateManager, get_job_state_from_event, serialize_job_state
 
 
 # Lazy-loaded boto3 client
@@ -121,17 +121,7 @@ def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: Struc
 
     # Include job_state if present
     if job_state:
-        payload["job_state"] = {
-            "job_execution_id": job_state.job_execution_id,
-            "job_id": job_state.job_id,
-            "trigger_source": job_state.trigger_source,
-            "email": job_state.email,
-            "petname": job_state.petname,
-            "dep_id": job_state.dep_id,
-            "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
-            "steps": job_state.steps,
-            "resources": job_state.resources,
-        }
+        payload["job_state"] = serialize_job_state(job_state)
 
     step.info("Invoking resource lambda",
               function=function_name,
@@ -262,20 +252,7 @@ def orchestrate(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
 
     # Include updated job_state so the workflow can pass it to FinalizeJob
     if job_state:
-        result["job_state"] = {
-            "job_execution_id": job_state.job_execution_id,
-            "job_id": job_state.job_id,
-            "trigger_source": job_state.trigger_source,
-            "email": job_state.email,
-            "petname": job_state.petname,
-            "dep_id": job_state.dep_id,
-            "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
-            "steps": job_state.steps,
-            "resources": {
-                name: {k: v.value if isinstance(v, StepStatus) else v for k, v in data.items()}
-                for name, data in job_state.resources.items()
-            },
-        }
+        result["job_state"] = serialize_job_state(job_state)
 
     return result
 
