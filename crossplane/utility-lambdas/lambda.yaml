@@ -74,7 +74,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: user_create_ac90880.zip
+    s3Key: user_create_d68749d.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
