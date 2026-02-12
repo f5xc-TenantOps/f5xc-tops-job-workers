@@ -11,7 +11,8 @@ def test_create_user_success(mock_xc_client_class, mock_get_params):
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
+        "token-value": "token",
+        "idm-type": "local",
     }
 
     mock_client = MagicMock()
@@ -32,13 +33,14 @@ def test_create_user_success(mock_xc_client_class, mock_get_params):
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
-    assert "created successfully" in result["body"]
+    assert "created successfully" in result["body"]["message"]
     mock_client.create_user.assert_called_once_with(
         "test@example.com",
         "Test",
         "User",
         ["lab-users"],
-        [{"namespace": "default", "role": "ves-io-monitor-role"}]
+        [{"namespace": "default", "role": "ves-io-monitor-role"}],
+        idm_type="local",
     )
     mock_xc_client_class.assert_called_once_with(
         tenant_url="https://test.console.ves.volterra.io",
@@ -56,7 +58,8 @@ def test_create_user_already_exists_with_updates(mock_xc_client_class, mock_get_
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
+        "token-value": "token",
+        "idm-type": "local",
     }
 
     mock_client = MagicMock()
@@ -85,7 +88,7 @@ def test_create_user_already_exists_with_updates(mock_xc_client_class, mock_get_
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
-    assert "updated successfully" in result["body"]
+    assert "updated successfully" in result["body"]["message"]
     mock_client.create_user.assert_called_once()
     mock_client.get_user.assert_called_once_with("test@example.com")
     mock_client.update_user.assert_called_once()
@@ -112,7 +115,8 @@ def test_create_user_already_exists_no_changes(mock_xc_client_class, mock_get_pa
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
+        "token-value": "token",
+        "idm-type": "local",
     }
 
     mock_client = MagicMock()
@@ -141,7 +145,7 @@ def test_create_user_already_exists_no_changes(mock_xc_client_class, mock_get_pa
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
-    assert "No update needed" in result["body"]
+    assert "No update needed" in result["body"]["message"]
     mock_client.create_user.assert_called_once()
     mock_client.get_user.assert_called_once_with("test@example.com")
     mock_client.update_user.assert_not_called()
@@ -156,7 +160,8 @@ def test_create_user_exists_but_not_found_in_list(mock_xc_client_class, mock_get
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
+        "token-value": "token",
+        "idm-type": "local",
     }
 
     mock_client = MagicMock()
@@ -215,7 +220,8 @@ def test_create_user_api_error(mock_xc_client_class, mock_get_params):
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
+        "token-value": "token",
+        "idm-type": "local",
     }
 
     mock_client = MagicMock()
@@ -247,7 +253,8 @@ def test_create_user_defaults_for_optional_fields(mock_xc_client_class, mock_get
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
+        "token-value": "token",
+        "idm-type": "local",
     }
 
     mock_client = MagicMock()
@@ -272,7 +279,8 @@ def test_create_user_defaults_for_optional_fields(mock_xc_client_class, mock_get
         "Test",
         "User",
         [],  # default empty group_names
-        []   # default empty namespace_roles
+        [],  # default empty namespace_roles
+        idm_type="local",
     )
 
 
@@ -329,7 +337,8 @@ def test_state_updates_on_success(mock_xc_client_class, mock_get_params, mock_st
 
     mock_get_params.return_value = {
         "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "test-token"
+        "token-value": "test-token",
+        "idm-type": "local",
     }
     mock_client = MagicMock()
     mock_xc_client_class.return_value = mock_client

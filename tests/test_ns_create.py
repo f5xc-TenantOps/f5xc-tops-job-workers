@@ -32,8 +32,8 @@ def test_create_namespace_success(mock_xc_client, mock_get_params):
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
-    assert "created successfully" in result["body"]
-    assert "available" in result["body"]
+    assert "created successfully" in result["body"]["message"]
+    assert "available" in result["body"]["message"]
     mock_client.create_namespace.assert_called_once_with("test-ns", "Test namespace")
     mock_xc_client.assert_called_once_with(
         tenant_url="https://test.console.ves.volterra.io",
@@ -71,8 +71,8 @@ def test_create_namespace_already_exists(mock_xc_client, mock_get_params):
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
-    assert "already exists" in result["body"]
-    assert "available" in result["body"]
+    assert "already exists" in result["body"]["message"]
+    assert "available" in result["body"]["message"]
 
 
 @patch("ns_create.function.get_ssm_parameters")
@@ -102,7 +102,7 @@ def test_create_namespace_no_description(mock_xc_client, mock_get_params):
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
-    assert "created successfully" in result["body"]
+    assert "created successfully" in result["body"]["message"]
     mock_client.create_namespace.assert_called_once_with("test-ns", "")
 
 

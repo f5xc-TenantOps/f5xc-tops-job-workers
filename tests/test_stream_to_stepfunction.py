@@ -16,7 +16,11 @@ def test_stream_triggers_stepfunction_on_insert(mock_get_ddb, mock_get_sfn, mock
 
     mock_ddb = MagicMock()
     mock_ddb.get_item.return_value = {
-        "Item": {"job_id": {"S": "api-lab"}}
+        "Item": {
+            "lab_id": {"S": "lab-456"},
+            "job_id": {"S": "api-lab"},
+            "ssm_base_path": {"S": "/tenantOps/test"},
+        }
     }
     mock_get_ddb.return_value = mock_ddb
 
@@ -231,24 +235,18 @@ def test_stream_handles_missing_fields(mock_get_ddb, mock_get_sfn):
     mock_sfn.start_execution.assert_not_called()
 
 
-@patch("stream_to_stepfunction.function.StateManager")
 @patch("stream_to_stepfunction.function._get_sfn_client")
 @patch("stream_to_stepfunction.function._get_dynamodb_client")
 @patch.dict(os.environ, {"STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123:stateMachine:test"})
-def test_stream_uses_lab_id_as_job_id_when_not_found(mock_get_ddb, mock_get_sfn, mock_state_manager):
-    """When lab config not found, use lab_id as job_id."""
+def test_stream_raises_when_lab_config_not_found(mock_get_ddb, mock_get_sfn):
+    """When lab config not found, PermanentError is raised."""
     from stream_to_stepfunction.function import process_record
+    from shared.errors import PermanentError
     from shared.logging import StructuredLogger
 
     mock_ddb = MagicMock()
     mock_ddb.get_item.return_value = {}  # No Item found
     mock_get_ddb.return_value = mock_ddb
-
-    mock_sfn = MagicMock()
-    mock_sfn.start_execution.return_value = {
-        "executionArn": "arn:aws:states:us-east-1:123:execution:test"
-    }
-    mock_get_sfn.return_value = mock_sfn
 
     logger = StructuredLogger("test", "test-correlation-id")
     record = {
@@ -263,11 +261,7 @@ def test_stream_uses_lab_id_as_job_id_when_not_found(mock_get_ddb, mock_get_sfn,
         }
     }
 
-    result = process_record(record, logger)
+    with pytest.raises(PermanentError, match="Lab config not found"):
+        process_record(record, logger)
 
-    assert result["triggered"] is True
-    # Check that job_id in the input equals lab_id
-    call_args = mock_sfn.start_execution.call_args
-    sfn_input = json.loads(call_args.kwargs["input"])
-    assert sfn_input["job_id"] == "my-lab-id"
-    mock_state_manager.return_value.update_state.assert_called_once()
+    mock_get_sfn.return_value.start_execution.assert_not_called()
