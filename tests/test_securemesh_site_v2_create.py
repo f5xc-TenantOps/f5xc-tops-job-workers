@@ -106,6 +106,45 @@ def test_create_site_already_exists(mock_xc_client_class, mock_get_params, mock_
 @patch("securemesh_site_v2_create.function.boto3")
 @patch("securemesh_site_v2_create.function.get_ssm_parameters")
 @patch("securemesh_site_v2_create.function.XCClient")
+def test_create_site_dep_id_from_job_state(mock_xc_client_class, mock_get_params, mock_boto3):
+    """dep_id extracted from job_state when not a top-level event key."""
+    from securemesh_site_v2_create.function import create_site
+    from shared.logging import StructuredLogger
+
+    mock_get_params.return_value = {
+        "tenant-url": "https://test.console.ves.volterra.io",
+        "token-value": "token"
+    }
+
+    mock_client = MagicMock()
+    mock_client.create_securemesh_site_v2.return_value = {"metadata": {"name": "test-site"}}
+    mock_client.create_registration_token.return_value = {
+        "spec": {"content": "eyJhbGci.jwt.token", "site_name": "test-site"}
+    }
+    mock_xc_client_class.return_value = mock_client
+
+    mock_s3 = MagicMock()
+    mock_boto3.client.return_value = mock_s3
+
+    logger = StructuredLogger("test", "test-correlation-id")
+    event = {
+        "ssm_base_path": "/tenantOps/mcn-lab",
+        "metadata": {"name": "test-site", "namespace": "system"},
+        "spec": {"kvm": {"not_managed": {}}},
+        "job_state": {"dep_id": "dep-456"}
+    }
+
+    result = create_site(event, logger)
+
+    assert result["status"] == "success"
+    mock_s3.put_object.assert_called_once()
+    s3_call = mock_s3.put_object.call_args
+    assert s3_call[1]["Key"] == "dep-456/site_token"
+
+
+@patch("securemesh_site_v2_create.function.boto3")
+@patch("securemesh_site_v2_create.function.get_ssm_parameters")
+@patch("securemesh_site_v2_create.function.XCClient")
 def test_create_site_no_dep_id_skips_s3(mock_xc_client_class, mock_get_params, mock_boto3):
     """When no dep_id is provided, skip S3 write."""
     from securemesh_site_v2_create.function import create_site

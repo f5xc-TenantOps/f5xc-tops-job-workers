@@ -38,7 +38,7 @@ def create_site(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     metadata = event["metadata"]
     spec = event["spec"]
     name = metadata["name"]
-    dep_id = event.get("dep_id")
+    dep_id = event.get("dep_id") or event.get("job_state", {}).get("dep_id")
 
     # Get XC credentials
     params = get_ssm_parameters(
