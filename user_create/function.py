@@ -80,7 +80,7 @@ def handler(event: dict, context, logger: StructuredLogger):
             # Mark step complete
             if state_manager and job_state:
                 state_manager.mark_step_complete(
-                    job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, email=email
+                    job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, name=email
                 )
 
             result = {"message": f"User '{email}' created successfully."}
@@ -119,7 +119,7 @@ def handler(event: dict, context, logger: StructuredLogger):
                     # Mark step complete
                     if state_manager and job_state:
                         state_manager.mark_step_complete(
-                            job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, email=email
+                            job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, name=email
                         )
 
                     result = {"message": f"User '{email}' updated successfully."}
@@ -132,7 +132,7 @@ def handler(event: dict, context, logger: StructuredLogger):
                     # Mark step complete
                     if state_manager and job_state:
                         state_manager.mark_step_complete(
-                            job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, email=email
+                            job_state, "user", StepStatus.SUCCESS, lab_id=lab_id, name=email
                         )
 
                     result = {"message": f"User '{email}' already exists with the correct settings. No update needed."}
