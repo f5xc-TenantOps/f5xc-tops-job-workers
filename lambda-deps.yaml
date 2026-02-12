@@ -59,6 +59,14 @@ lambdas:
     dir: waf_policy_create
     component: provisioning-workflow
     uses_shared: true
+  securemesh_site_v2_create:
+    dir: securemesh_site_v2_create
+    component: provisioning-workflow
+    uses_shared: true
+  securemesh_site_v2_remove:
+    dir: securemesh_site_v2_remove
+    component: utility-lambdas
+    uses_shared: true
   stream_to_stepfunction:
     dir: stream_to_stepfunction
     component: provisioning-workflow
