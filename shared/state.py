@@ -120,7 +120,7 @@ def _build_dynamodb_item(job_state: JobState) -> Dict[str, Any]:
         "petname": job_state.petname,
         "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "ttl": int(time.time()) + (7 * 24 * 60 * 60),  # 7 days
+        "ttl": int(time.time()) + (24 * 60 * 60),  # 1 day
     }
 
     if job_state.dep_id:
