@@ -245,3 +245,33 @@ spec:
       Application: tops-core
   providerConfigRef:
     name: default
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-securemesh-site-v2-create-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: provisioning-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: securemesh_site_v2_create_PLACEHOLDER.zip
+    kmsKeyArn: arn:aws:kms:us-east-1:430171053948:key/dc4482a7-d9eb-4f1d-8d20-e9abff473732
+    roleRef:
+      name: tops-utility-role-v2
+    environment:
+      - variables:
+          DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
+    tags:
+      Name: tops-securemesh-site-v2-create-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default

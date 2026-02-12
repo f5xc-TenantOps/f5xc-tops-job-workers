@@ -114,3 +114,32 @@ spec:
       Application: tops-core
   providerConfigRef:
     name: default
+---
+apiVersion: lambda.aws.upbound.io/v1beta1
+kind: Function
+metadata:
+  name: tops-securemesh-site-v2-remove-v2
+  labels:
+    app.kubernetes.io/name: tops-core-v2
+    app.kubernetes.io/component: utility-lambda
+spec:
+  forProvider:
+    region: us-east-1
+    runtime: python3.11
+    handler: function.handler
+    timeout: 60
+    memorySize: 128
+    s3Bucket: tops-lambda-bucket-v2
+    s3Key: securemesh_site_v2_remove_PLACEHOLDER.zip
+    roleRef:
+      name: tops-utility-role-v2
+    environment:
+      - variables:
+          DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
+    tags:
+      Name: tops-securemesh-site-v2-remove-v2
+      Environment: production
+      ManagedBy: crossplane
+      Application: tops-core
+  providerConfigRef:
+    name: default
