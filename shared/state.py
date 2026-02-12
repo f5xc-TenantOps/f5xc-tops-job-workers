@@ -5,12 +5,94 @@ Manages state updates to S3 for UDF polling.
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import boto3
 
 from shared.job_state import JobState, JobStatus, StepStatus
+
+
+# Status code → clean message for API errors
+_API_STATUS_MESSAGES = {
+    401: "Authentication failed — API credentials may be expired",
+    403: "Permission denied",
+    429: "Rate limited — too many API requests",
+}
+
+
+def _sanitize_error(msg: str) -> str:
+    """Clean raw error messages for end-user display.
+
+    Strips Python exception noise, internal service names,
+    and raw API response bodies. Raw errors remain in Lambda
+    logs (Loki) for debugging.
+    """
+    if not msg:
+        return msg
+
+    # Python tracebacks from Step Function Cause — check first since
+    # tracebacks can contain API error messages on the last line
+    if "Traceback" in msg or 'File "/' in msg:
+        return "Internal error"
+
+    # Step Function state machine errors (States.TaskFailed, States.Timeout, etc.)
+    if re.search(r"States\.\w+", msg):
+        return "Workflow error"
+
+    # API errors — map status codes to clean messages
+    api_match = re.search(r"API error (\d{3}):", msg)
+    if api_match:
+        status = int(api_match.group(1))
+        if status in _API_STATUS_MESSAGES:
+            return _API_STATUS_MESSAGES[status]
+        if 400 <= status < 500:
+            return "Configuration error"
+        if status >= 500:
+            return "Service temporarily unavailable"
+
+    # Network connectivity
+    if re.search(r"Network error:", msg):
+        return "Service unreachable"
+
+    # SSM parameter store
+    if "Failed to fetch parameters" in msg:
+        return "Configuration unavailable"
+
+    # Lambda invocation failures — strip internal function names
+    if re.match(r"Failed to invoke ", msg):
+        return "Internal service error"
+
+    # Resource creation wrapper — unwrap and re-sanitize the inner message
+    creation_match = re.match(r"Resource creation failed:\s*(.*)", msg, re.DOTALL)
+    if creation_match:
+        return _sanitize_error(creation_match.group(1).strip())
+
+    # General noise stripping for anything else
+    cleaned = msg
+    cleaned = re.sub(r"HTTPS?Connection(?:Pool)?\([^)]*\):\s*", "", cleaned)
+    cleaned = re.sub(r"Max retries exceeded with url:\s*\S+\s*", "", cleaned)
+    cleaned = re.sub(r"\(?Caused by\s*", "", cleaned)
+    cleaned = re.sub(r"\w+Error\(['\"]?", "", cleaned)
+    cleaned = re.sub(r"<[^>]+>", "", cleaned)
+    # Strip internal Lambda function names (tops-xxx-v2)
+    cleaned = re.sub(r"tops-[\w-]+-v\d+", "service", cleaned)
+    # Strip raw JSON blobs (50+ chars between braces)
+    cleaned = re.sub(r"\{[^}]{50,}\}", "", cleaned)
+    # Clean up stray punctuation
+    cleaned = cleaned.strip("'\"() \n")
+    cleaned = re.sub(r"^[,:]\s*", "", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = cleaned.strip()
+
+    if not cleaned:
+        return "Internal error"
+
+    if len(cleaned) > 200:
+        cleaned = cleaned[:200] + "..."
+
+    return cleaned
 
 
 def get_job_state_from_event(event: dict) -> Optional[JobState]:
@@ -68,6 +150,9 @@ def _build_s3_state(
         for k, v in step_data.items():
             if k != "status":
                 step_entry[k] = v
+        # Sanitize error fields for end-user display
+        if "error" in step_entry and isinstance(step_entry["error"], str):
+            step_entry["error"] = _sanitize_error(step_entry["error"])
         steps[step_name] = step_entry
 
     # Convert resources to S3 format (same pattern as steps)
@@ -79,7 +164,16 @@ def _build_s3_state(
                 res_entry[k] = v.value
             else:
                 res_entry[k] = v
+        # Sanitize error fields for end-user display
+        if "error" in res_entry and isinstance(res_entry["error"], str):
+            res_entry["error"] = _sanitize_error(res_entry["error"])
         resources[res_name] = res_entry
+
+    # Sanitize the errors list for end-user display
+    sanitized_errors = [
+        _sanitize_error(e) if isinstance(e, str) else e
+        for e in (errors or [])
+    ]
 
     status = job_state.status
     if isinstance(status, JobStatus):
@@ -95,7 +189,7 @@ def _build_s3_state(
         "steps": steps,
         "resources": resources,
         "outputs": outputs or {},
-        "errors": errors or [],
+        "errors": sanitized_errors,
     }
 
     if job_state.tenant_url:
