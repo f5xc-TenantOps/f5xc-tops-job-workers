@@ -61,6 +61,7 @@ def handler(event: dict, context, logger: StructuredLogger):
         params = get_ssm_parameters([
             f"{ssm_base_path}/tenant-url",
             f"{ssm_base_path}/token-value",
+            f"{ssm_base_path}/idm-type",
         ])
 
         # Initialize XC client
@@ -74,7 +75,7 @@ def handler(event: dict, context, logger: StructuredLogger):
         step_logger = logger.with_step("create_user")
         step_logger.info("Attempting to create user", email=email)
         try:
-            client.create_user(email, first_name, last_name, group_names, namespace_roles)
+            client.create_user(email, first_name, last_name, group_names, namespace_roles, idm_type=params["idm-type"])
             step_logger.info("User created successfully", email=email)
 
             # Mark step complete

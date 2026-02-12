@@ -226,7 +226,8 @@ class XCClient:
         first_name: str,
         last_name: str,
         group_names: list = None,
-        namespace_roles: list = None
+        namespace_roles: list = None,
+        idm_type: str = "SSO"
     ) -> Dict[str, Any]:
         """Create a user."""
         payload = {
@@ -237,7 +238,7 @@ class XCClient:
             "namespace": "system",
             "group_names": group_names or [],
             "namespace_roles": namespace_roles or [],
-            "idm_type": "SSO",
+            "idm_type": idm_type,
             "type": "USER"
         }
         return self.post("/api/web/custom/namespaces/system/user_roles", payload)
