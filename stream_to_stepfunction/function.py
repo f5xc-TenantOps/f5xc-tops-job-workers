@@ -282,8 +282,20 @@ def process_remove(record: Dict[str, Any], logger: StructuredLogger) -> Dict[str
     # Get lab config for ssm_base_path
     lab_config = get_lab_config(lab_id, logger)
 
-    # Check for duplicate user in same tenant (preserve legacy behavior)
-    skip_user_removal = _check_existing_user_in_tenant(email, tenant_url, logger)
+    # Derive cleanup decisions from manifest (what was actually created)
+    if resources:
+        namespace_enabled = any(d.get("type") == "namespace" for d in resources.values())
+        user_enabled = any(d.get("type") == "user" for d in resources.values())
+    else:
+        # Legacy fallback: no manifest in OldImage (pre-change deployment)
+        namespace_enabled = lab_config.get("namespace", {}).get("enabled", True)
+        user_enabled = lab_config.get("user", {}).get("enabled", True)
+
+    # Check for duplicate user in same tenant only if user was provisioned
+    skip_user_removal = (
+        _check_existing_user_in_tenant(email, tenant_url, logger)
+        if user_enabled else False
+    )
 
     cleanup_state_machine_arn = _get_cleanup_state_machine_arn()
     if not cleanup_state_machine_arn:
@@ -299,8 +311,8 @@ def process_remove(record: Dict[str, Any], logger: StructuredLogger) -> Dict[str
         "petname": petname,
         "tenant_url": tenant_url,
         "ssm_base_path": lab_config["ssm_base_path"],
-        "namespace_enabled": lab_config.get("namespace", {}).get("enabled", True),
-        "user_enabled": lab_config.get("user", {}).get("enabled", True),
+        "namespace_enabled": namespace_enabled,
+        "user_enabled": user_enabled,
         "skip_user_removal": skip_user_removal,
         "resources": resources,
     }

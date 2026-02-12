@@ -62,26 +62,146 @@ def test_stream_ignores_non_insert_events():
     assert result["triggered"] is False
 
 
+@patch("stream_to_stepfunction.function._check_existing_user_in_tenant", return_value=False)
 @patch("stream_to_stepfunction.function._get_sfn_client")
 @patch("stream_to_stepfunction.function._get_dynamodb_client")
-def test_stream_ignores_remove_events(mock_get_ddb, mock_get_sfn):
-    """REMOVE events are ignored."""
-    from stream_to_stepfunction.function import process_record
+@patch.dict(os.environ, {"CLEANUP_STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123:stateMachine:cleanup"})
+def test_remove_with_manifest_derives_flags_from_resources(mock_get_ddb, mock_get_sfn, mock_check_user):
+    """REMOVE with manifest derives namespace_enabled/user_enabled from resources."""
+    from stream_to_stepfunction.function import process_remove
     from shared.logging import StructuredLogger
 
+    mock_ddb = MagicMock()
+    mock_ddb.get_item.return_value = {
+        "Item": {"lab_id": {"S": "lab-1"}, "ssm_base_path": {"S": "/ssm/path"}}
+    }
+    mock_get_ddb.return_value = mock_ddb
+
     mock_sfn = MagicMock()
+    mock_sfn.start_execution.return_value = {
+        "executionArn": "arn:aws:states:us-east-1:123:execution:cleanup"
+    }
     mock_get_sfn.return_value = mock_sfn
 
-    logger = StructuredLogger("test", "test-correlation-id")
+    logger = StructuredLogger("test", "test-id")
     record = {
-        "eventName": "REMOVE",
-        "dynamodb": {"OldImage": {"dep_id": {"S": "dep-123"}}}
+        "dynamodb": {
+            "OldImage": {
+                "dep_id": {"S": "dep-123"},
+                "lab_id": {"S": "lab-1"},
+                "email": {"S": "user@test.com"},
+                "petname": {"S": "fuzzy-cat"},
+                "tenant_url": {"S": "https://tenant.example.com"},
+                "resources": {"M": {
+                    "fuzzy-cat": {"M": {"type": {"S": "namespace"}}},
+                    "user@test.com": {"M": {"type": {"S": "user"}}},
+                    "fuzzy-cat-origin": {"M": {"type": {"S": "origin_pool"}}},
+                }},
+            }
+        }
     }
 
-    result = process_record(record, logger)
+    result = process_remove(record, logger)
 
-    assert result["triggered"] is False
-    mock_sfn.start_execution.assert_not_called()
+    assert result["triggered"] is True
+    sfn_input = json.loads(mock_sfn.start_execution.call_args.kwargs["input"])
+    assert sfn_input["namespace_enabled"] is True
+    assert sfn_input["user_enabled"] is True
+
+
+@patch("stream_to_stepfunction.function._check_existing_user_in_tenant", return_value=False)
+@patch("stream_to_stepfunction.function._get_sfn_client")
+@patch("stream_to_stepfunction.function._get_dynamodb_client")
+@patch.dict(os.environ, {"CLEANUP_STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123:stateMachine:cleanup"})
+def test_remove_manifest_without_user_disables_user_flag(mock_get_ddb, mock_get_sfn, mock_check_user):
+    """When manifest has no user type, user_enabled is False."""
+    from stream_to_stepfunction.function import process_remove
+    from shared.logging import StructuredLogger
+
+    mock_ddb = MagicMock()
+    mock_ddb.get_item.return_value = {
+        "Item": {"lab_id": {"S": "lab-1"}, "ssm_base_path": {"S": "/ssm/path"}}
+    }
+    mock_get_ddb.return_value = mock_ddb
+
+    mock_sfn = MagicMock()
+    mock_sfn.start_execution.return_value = {
+        "executionArn": "arn:aws:states:us-east-1:123:execution:cleanup"
+    }
+    mock_get_sfn.return_value = mock_sfn
+
+    logger = StructuredLogger("test", "test-id")
+    record = {
+        "dynamodb": {
+            "OldImage": {
+                "dep_id": {"S": "dep-123"},
+                "lab_id": {"S": "lab-1"},
+                "email": {"S": "user@test.com"},
+                "petname": {"S": "fuzzy-cat"},
+                "tenant_url": {"S": "https://tenant.example.com"},
+                "resources": {"M": {
+                    "fuzzy-cat": {"M": {"type": {"S": "namespace"}}},
+                    "fuzzy-cat-origin": {"M": {"type": {"S": "origin_pool"}}},
+                }},
+            }
+        }
+    }
+
+    result = process_remove(record, logger)
+
+    sfn_input = json.loads(mock_sfn.start_execution.call_args.kwargs["input"])
+    assert sfn_input["namespace_enabled"] is True
+    assert sfn_input["user_enabled"] is False
+    assert sfn_input["skip_user_removal"] is False
+    # Should NOT have called _check_existing_user_in_tenant since user_enabled is False
+    mock_check_user.assert_not_called()
+
+
+@patch("stream_to_stepfunction.function._check_existing_user_in_tenant", return_value=False)
+@patch("stream_to_stepfunction.function._get_sfn_client")
+@patch("stream_to_stepfunction.function._get_dynamodb_client")
+@patch.dict(os.environ, {"CLEANUP_STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123:stateMachine:cleanup"})
+def test_remove_without_manifest_falls_back_to_lab_config(mock_get_ddb, mock_get_sfn, mock_check_user):
+    """Legacy: no manifest in OldImage falls back to lab config flags."""
+    from stream_to_stepfunction.function import process_remove
+    from shared.logging import StructuredLogger
+
+    mock_ddb = MagicMock()
+    mock_ddb.get_item.return_value = {
+        "Item": {
+            "lab_id": {"S": "lab-1"},
+            "ssm_base_path": {"S": "/ssm/path"},
+            "namespace": {"M": {"enabled": {"BOOL": True}}},
+            "user": {"M": {"enabled": {"BOOL": False}}},
+        }
+    }
+    mock_get_ddb.return_value = mock_ddb
+
+    mock_sfn = MagicMock()
+    mock_sfn.start_execution.return_value = {
+        "executionArn": "arn:aws:states:us-east-1:123:execution:cleanup"
+    }
+    mock_get_sfn.return_value = mock_sfn
+
+    logger = StructuredLogger("test", "test-id")
+    record = {
+        "dynamodb": {
+            "OldImage": {
+                "dep_id": {"S": "dep-123"},
+                "lab_id": {"S": "lab-1"},
+                "email": {"S": "user@test.com"},
+                "petname": {"S": "fuzzy-cat"},
+                "tenant_url": {"S": "https://tenant.example.com"},
+                # No resources field — legacy deployment
+            }
+        }
+    }
+
+    result = process_remove(record, logger)
+
+    sfn_input = json.loads(mock_sfn.start_execution.call_args.kwargs["input"])
+    assert sfn_input["namespace_enabled"] is True
+    assert sfn_input["user_enabled"] is False
 
 
 @patch("stream_to_stepfunction.function._get_sfn_client")
