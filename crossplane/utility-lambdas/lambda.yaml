@@ -14,7 +14,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: ns_create_2b53a05.zip
+    s3Key: ns_create_c8efed6.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -43,7 +43,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: ns_remove_2b53a05.zip
+    s3Key: ns_remove_c8efed6.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -72,7 +72,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: user_create_2b53a05.zip
+    s3Key: user_create_c8efed6.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
@@ -101,7 +101,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: user_remove_2b53a05.zip
+    s3Key: user_remove_c8efed6.zip
     roleRef:
       name: tops-utility-role-v2
     environment:
