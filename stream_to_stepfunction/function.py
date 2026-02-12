@@ -275,6 +275,10 @@ def process_remove(record: Dict[str, Any], logger: StructuredLogger) -> Dict[str
         step.error("Missing required fields in REMOVE record")
         return {"triggered": False, "reason": "Missing required fields"}
 
+    # Read cleanup manifest from OldImage (written by finalize_job)
+    raw_resources = old_image.get("resources", {})
+    resources = _parse_dynamodb_value(raw_resources) if raw_resources else {}
+
     # Get lab config for ssm_base_path
     lab_config = get_lab_config(lab_id, logger)
 
@@ -298,6 +302,7 @@ def process_remove(record: Dict[str, Any], logger: StructuredLogger) -> Dict[str
         "namespace_enabled": lab_config.get("namespace", {}).get("enabled", True),
         "user_enabled": lab_config.get("user", {}).get("enabled", True),
         "skip_user_removal": skip_user_removal,
+        "resources": resources,
     }
 
     step.info("Starting cleanup Step Function",

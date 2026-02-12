@@ -64,44 +64,22 @@ class TestBuildS3State:
 class TestStateManager:
     """Tests for StateManager class."""
 
-    @pytest.fixture
-    def mock_s3(self):
-        with patch("shared.state.boto3") as mock_boto:
-            mock_client = MagicMock()
-            mock_boto.client.return_value = mock_client
-            yield mock_client
-
-    @pytest.fixture
-    def mock_dynamodb(self):
-        with patch("shared.state.boto3") as mock_boto:
-            mock_resource = MagicMock()
-            mock_boto.resource.return_value = mock_resource
-            yield mock_resource
-
     def test_init_creates_clients(self):
         """StateManager initializes boto3 clients."""
         with patch("shared.state.boto3") as mock_boto:
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
             assert manager.s3_bucket == "test-bucket"
-            assert manager.dynamodb_table == "test-table"
 
-    def test_update_state_udf_writes_both(self):
-        """UDF trigger writes to both S3 and DynamoDB."""
+    def test_update_state_udf_writes_s3(self):
+        """UDF trigger writes to S3."""
         with patch("shared.state.boto3") as mock_boto:
             mock_s3 = MagicMock()
-            mock_ddb_resource = MagicMock()
-            mock_table = MagicMock()
-            mock_ddb_resource.Table.return_value = mock_table
-
             mock_boto.client.return_value = mock_s3
-            mock_boto.resource.return_value = mock_ddb_resource
 
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -122,23 +100,14 @@ class TestStateManager:
             assert call_args.kwargs["Bucket"] == "test-bucket"
             assert call_args.kwargs["Key"] == "dep-789.json"
 
-            # Verify DynamoDB write
-            mock_table.put_item.assert_called_once()
-
-    def test_update_state_aad_sync_writes_dynamodb_only(self):
-        """AAD sync trigger writes only to DynamoDB."""
+    def test_update_state_non_udf_skips_s3(self):
+        """Non-UDF trigger does not write to S3."""
         with patch("shared.state.boto3") as mock_boto:
             mock_s3 = MagicMock()
-            mock_ddb_resource = MagicMock()
-            mock_table = MagicMock()
-            mock_ddb_resource.Table.return_value = mock_table
-
             mock_boto.client.return_value = mock_s3
-            mock_boto.resource.return_value = mock_ddb_resource
 
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -155,9 +124,6 @@ class TestStateManager:
             # Verify NO S3 write
             mock_s3.put_object.assert_not_called()
 
-            # Verify DynamoDB write
-            mock_table.put_item.assert_called_once()
-
 
 class TestStateManagerHelpers:
     """Tests for StateManager helper methods."""
@@ -167,7 +133,6 @@ class TestStateManagerHelpers:
         with patch("shared.state.boto3"):
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -191,7 +156,6 @@ class TestStateManagerHelpers:
         with patch("shared.state.boto3"):
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -215,16 +179,10 @@ class TestStateManagerHelpers:
         """add_output stores output value in S3 state."""
         with patch("shared.state.boto3") as mock_boto:
             mock_s3 = MagicMock()
-            mock_ddb_resource = MagicMock()
-            mock_table = MagicMock()
-            mock_ddb_resource.Table.return_value = mock_table
-
             mock_boto.client.return_value = mock_s3
-            mock_boto.resource.return_value = mock_ddb_resource
 
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -250,7 +208,6 @@ class TestStateManagerHelpers:
         with patch("shared.state.boto3"):
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -277,7 +234,6 @@ class TestStateManagerHelpers:
         with patch("shared.state.boto3"):
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(
@@ -301,7 +257,6 @@ class TestStateManagerHelpers:
         with patch("shared.state.boto3"):
             manager = StateManager(
                 s3_bucket="test-bucket",
-                dynamodb_table="test-table"
             )
 
             job_state = JobState(

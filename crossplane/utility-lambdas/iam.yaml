@@ -72,15 +72,9 @@ spec:
           {
             "Effect": "Allow",
             "Action": [
-              "dynamodb:PutItem",
-              "dynamodb:GetItem",
-              "dynamodb:UpdateItem",
-              "dynamodb:Query"
+              "dynamodb:UpdateItem"
             ],
-            "Resource": [
-              "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2",
-              "arn:aws:dynamodb:us-east-1:*:table/tops-job-state-v2/index/*"
-            ]
+            "Resource": "arn:aws:dynamodb:us-east-1:*:table/tops-udf-lab-deployment-state-v2"
           }
         ]
       }

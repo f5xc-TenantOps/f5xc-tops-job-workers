@@ -1,7 +1,6 @@
 """State persistence for deployment workflows.
 
-Manages state updates to S3 (for UDF polling) and DynamoDB (for portal visibility).
-S3 writes only occur for UDF-triggered jobs; DynamoDB writes occur for all jobs.
+Manages state updates to S3 for UDF polling.
 """
 
 import json
@@ -105,69 +104,12 @@ def _build_s3_state(
     return state
 
 
-def _build_dynamodb_item(job_state: JobState) -> Dict[str, Any]:
-    """Build DynamoDB item from JobState.
-
-    Uses native Python types (boto3 resource handles serialization).
-    """
-    import time
-
-    item = {
-        "job_execution_id": job_state.job_execution_id,
-        "job_id": job_state.job_id,
-        "trigger_source": job_state.trigger_source,
-        "email": job_state.email,
-        "petname": job_state.petname,
-        "status": job_state.status.value if isinstance(job_state.status, JobStatus) else job_state.status,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "ttl": int(time.time()) + (24 * 60 * 60),  # 1 day
-    }
-
-    if job_state.dep_id:
-        item["dep_id"] = job_state.dep_id
-    if job_state.tenant_url:
-        item["tenant_url"] = job_state.tenant_url
-    if job_state.step_function_execution_arn:
-        item["step_function_execution_arn"] = job_state.step_function_execution_arn
-    if job_state.error:
-        item["error"] = job_state.error
-
-    # Convert steps
-    if job_state.steps:
-        steps = {}
-        for step_name, step_data in job_state.steps.items():
-            step_entry = {}
-            for k, v in step_data.items():
-                if isinstance(v, StepStatus):
-                    step_entry[k] = v.value
-                else:
-                    step_entry[k] = v
-            steps[step_name] = step_entry
-        item["steps"] = steps
-
-    # Convert resources
-    if job_state.resources:
-        resources = {}
-        for res_name, res_data in job_state.resources.items():
-            res_entry = {}
-            for k, v in res_data.items():
-                if isinstance(v, StepStatus):
-                    res_entry[k] = v.value
-                else:
-                    res_entry[k] = v
-            resources[res_name] = res_entry
-        item["resources"] = resources
-
-    return item
-
-
 class StateManager:
-    """Manages state persistence to S3 and DynamoDB.
+    """Manages state persistence to S3.
 
     Usage:
         manager = StateManager(
             s3_bucket=os.environ["DEPLOYMENT_STATE_BUCKET"],
-            dynamodb_table=os.environ["JOB_STATE_TABLE"]
         )
 
         # After each step:
@@ -182,19 +124,15 @@ class StateManager:
     def __init__(
         self,
         s3_bucket: Optional[str] = None,
-        dynamodb_table: Optional[str] = None,
     ):
         """Initialize StateManager.
 
         Args:
             s3_bucket: S3 bucket for deployment state files.
-            dynamodb_table: DynamoDB table for job state.
         """
         self.s3_bucket = s3_bucket or os.environ.get("DEPLOYMENT_STATE_BUCKET", "")
-        self.dynamodb_table = dynamodb_table or os.environ.get("JOB_STATE_TABLE", "")
 
         self._s3 = boto3.client("s3")
-        self._dynamodb = boto3.resource("dynamodb")
         self._outputs: Dict[str, Dict[str, Any]] = {}  # job_execution_id -> outputs
         self._errors: Dict[str, list] = {}  # job_execution_id -> errors
 
@@ -203,16 +141,12 @@ class StateManager:
         job_state: JobState,
         lab_id: Optional[str] = None,
     ) -> None:
-        """Write current state to persistence stores.
+        """Write current state to S3.
 
         Args:
             job_state: Current job state to persist.
             lab_id: UDF lab identifier (required for S3 writes).
         """
-        # Always write to DynamoDB
-        self._write_to_dynamodb(job_state)
-
-        # Only write to S3 for UDF-triggered jobs
         if job_state.trigger_source == "udf" and job_state.dep_id:
             self._write_to_s3(job_state, lab_id)
 
@@ -232,15 +166,6 @@ class StateManager:
             Body=json.dumps(state, indent=2),
             ContentType="application/json",
         )
-
-    def _write_to_dynamodb(self, job_state: JobState) -> None:
-        """Write state to DynamoDB."""
-        if not self.dynamodb_table:
-            return
-
-        table = self._dynamodb.Table(self.dynamodb_table)
-        item = _build_dynamodb_item(job_state)
-        table.put_item(Item=item)
 
     def mark_step_started(
         self,

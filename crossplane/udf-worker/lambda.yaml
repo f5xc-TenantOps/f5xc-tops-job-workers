@@ -25,7 +25,6 @@ spec:
           NS_CREATE_LAMBDA_FUNCTION: tops-ns-create-v2
           NS_REMOVE_LAMBDA_FUNCTION: tops-ns-remove-v2
           STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-udf-worker-v2
       Environment: production

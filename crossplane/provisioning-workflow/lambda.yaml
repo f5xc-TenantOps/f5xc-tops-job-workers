@@ -21,7 +21,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-prepare-job-config-v2
       Environment: production
@@ -52,7 +51,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
           LAMBDA_PREFIX: "tops-"
           LAMBDA_SUFFIX: "-v2"
     tags:
@@ -85,7 +83,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-origin-pool-create-v2
       Environment: production
@@ -116,7 +113,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-http-lb-create-v2
       Environment: production
@@ -147,7 +143,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-tcp-lb-create-v2
       Environment: production
@@ -178,7 +173,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-waf-policy-create-v2
       Environment: production
@@ -209,7 +203,7 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
+          DEPLOYMENT_STATE_TABLE: tops-udf-lab-deployment-state-v2
     tags:
       Name: tops-finalize-job-v2
       Environment: production
@@ -244,7 +238,6 @@ spec:
           STATE_MACHINE_ARN: arn:aws:states:us-east-1:430171053948:stateMachine:tops-provisioning-workflow-v2
           CLEANUP_STATE_MACHINE_ARN: arn:aws:states:us-east-1:430171053948:stateMachine:tops-cleanup-workflow-v2
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-stream-to-sfn-v2
       Environment: production

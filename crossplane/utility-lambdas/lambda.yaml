@@ -20,7 +20,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-ns-create-v2
       Environment: production
@@ -50,7 +49,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-ns-remove-v2
       Environment: production
@@ -80,7 +78,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-user-create-v2
       Environment: production
@@ -110,7 +107,6 @@ spec:
     environment:
       - variables:
           DEPLOYMENT_STATE_BUCKET: tops-deployment-state-v2
-          JOB_STATE_TABLE: tops-job-state-v2
     tags:
       Name: tops-user-remove-v2
       Environment: production
