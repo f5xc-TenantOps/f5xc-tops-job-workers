@@ -245,14 +245,23 @@ class StateManager:
             self._write_to_s3(job_state, lab_id)
 
     def _write_to_s3(self, job_state: JobState, lab_id: Optional[str]) -> None:
-        """Write state to S3 for UDF polling."""
+        """Write state to S3 for UDF polling.
+
+        Merges outputs with any existing outputs already in S3 so that
+        outputs written by earlier Lambdas are not lost when a later
+        Lambda writes state with its own StateManager instance.
+        """
         if not self.s3_bucket:
             return
 
-        outputs = self._outputs.get(job_state.job_execution_id, {})
+        new_outputs = self._outputs.get(job_state.job_execution_id, {})
         errors = self._errors.get(job_state.job_execution_id, [])
 
-        state = _build_s3_state(job_state, lab_id=lab_id, outputs=outputs, errors=errors)
+        # Preserve outputs from previous Lambda invocations
+        existing_outputs = self._read_existing_outputs(job_state)
+        merged_outputs = {**existing_outputs, **new_outputs}
+
+        state = _build_s3_state(job_state, lab_id=lab_id, outputs=merged_outputs, errors=errors)
 
         self._s3.put_object(
             Bucket=self.s3_bucket,
@@ -260,6 +269,18 @@ class StateManager:
             Body=json.dumps(state, indent=2),
             ContentType="application/json",
         )
+
+    def _read_existing_outputs(self, job_state: JobState) -> Dict[str, Any]:
+        """Read existing outputs from S3 state file."""
+        try:
+            resp = self._s3.get_object(
+                Bucket=self.s3_bucket,
+                Key=f"{job_state.dep_id}.json",
+            )
+            existing = json.loads(resp["Body"].read().decode("utf-8"))
+            return existing.get("outputs", {})
+        except Exception:
+            return {}
 
     def mark_step_started(
         self,
