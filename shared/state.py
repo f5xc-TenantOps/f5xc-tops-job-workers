@@ -366,6 +366,20 @@ class StateManager:
         job_state.mark_completed()
         self.update_state(job_state, lab_id=lab_id)
 
+    def mark_job_partial(
+        self,
+        job_state: JobState,
+        lab_id: Optional[str] = None,
+    ) -> None:
+        """Mark the entire job as PARTIAL.
+
+        Args:
+            job_state: Job state to update.
+            lab_id: UDF lab identifier.
+        """
+        job_state.mark_partial()
+        self.update_state(job_state, lab_id=lab_id)
+
     def mark_job_failed(
         self,
         job_state: JobState,

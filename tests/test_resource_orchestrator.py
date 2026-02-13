@@ -1,6 +1,9 @@
 import os
+import json
 import pytest
 from unittest.mock import MagicMock, patch
+
+from shared.errors import PermanentError, TransientError
 
 
 def test_orchestrator_builds_execution_levels():
@@ -57,3 +60,94 @@ def test_orchestrator_empty_resources():
     logger = StructuredLogger("test", "test-correlation-id")
     levels = build_execution_plan([], logger)
     assert levels == []
+
+
+_RESOURCE = {
+    "type": "origin_pool",
+    "metadata": {"name": "test-pool", "namespace": "test"},
+    "spec": {"port": 80},
+}
+
+
+@patch("resource_orchestrator.function._get_lambda_client")
+def test_lambda_crash_extracts_error_and_raises_transient(mock_get_client):
+    """Lambda crash with FunctionError extracts errorMessage/errorType."""
+    from resource_orchestrator.function import execute_resource
+    from shared.logging import StructuredLogger
+
+    mock_lambda = MagicMock()
+    mock_get_client.return_value = mock_lambda
+    mock_lambda.invoke.return_value = {
+        "FunctionError": "Unhandled",
+        "Payload": MagicMock(read=lambda: json.dumps({
+            "errorMessage": "name 'tenant_url' is not defined",
+            "errorType": "TransientError",
+        }).encode()),
+    }
+
+    logger = StructuredLogger("test", "test-id")
+    with pytest.raises(TransientError, match="TransientError"):
+        execute_resource(_RESOURCE, "/tenantOps/test", logger)
+
+
+@patch("resource_orchestrator.function._get_lambda_client")
+def test_lambda_crash_permanent_error_type(mock_get_client):
+    """Lambda crash with non-transient error type raises PermanentError."""
+    from resource_orchestrator.function import execute_resource
+    from shared.logging import StructuredLogger
+
+    mock_lambda = MagicMock()
+    mock_get_client.return_value = mock_lambda
+    mock_lambda.invoke.return_value = {
+        "FunctionError": "Unhandled",
+        "Payload": MagicMock(read=lambda: json.dumps({
+            "errorMessage": "'tenant-url'",
+            "errorType": "KeyError",
+        }).encode()),
+    }
+
+    logger = StructuredLogger("test", "test-id")
+    with pytest.raises(PermanentError, match="KeyError"):
+        execute_resource(_RESOURCE, "/tenantOps/test", logger)
+
+
+@patch("resource_orchestrator.function._get_lambda_client")
+def test_status_400_raises_permanent_error(mock_get_client):
+    """statusCode 400 from resource lambda raises PermanentError."""
+    from resource_orchestrator.function import execute_resource
+    from shared.logging import StructuredLogger
+
+    mock_lambda = MagicMock()
+    mock_get_client.return_value = mock_lambda
+    mock_lambda.invoke.return_value = {
+        "Payload": MagicMock(read=lambda: json.dumps({
+            "statusCode": 400,
+            "body": "Invalid configuration",
+        }).encode()),
+    }
+
+    logger = StructuredLogger("test", "test-id")
+    with pytest.raises(PermanentError, match="Invalid configuration"):
+        execute_resource(_RESOURCE, "/tenantOps/test", logger)
+
+
+@patch("resource_orchestrator.function._get_lambda_client")
+def test_no_double_wrapping_of_permanent_error(mock_get_client):
+    """PermanentError raised inside execute_resource is not re-wrapped as TransientError."""
+    from resource_orchestrator.function import execute_resource
+    from shared.logging import StructuredLogger
+
+    mock_lambda = MagicMock()
+    mock_get_client.return_value = mock_lambda
+    mock_lambda.invoke.return_value = {
+        "FunctionError": "Unhandled",
+        "Payload": MagicMock(read=lambda: json.dumps({
+            "errorMessage": "bad config",
+            "errorType": "PermanentError",
+        }).encode()),
+    }
+
+    logger = StructuredLogger("test", "test-id")
+    # PermanentError is not in _TRANSIENT_ERROR_TYPES, so should raise PermanentError
+    with pytest.raises(PermanentError):
+        execute_resource(_RESOURCE, "/tenantOps/test", logger)

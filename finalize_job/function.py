@@ -32,7 +32,8 @@ def _update_deployment_record(dep_id: str, status: str, job_state, logger) -> No
         return
 
     # Map finalize status to deployment_status
-    deployment_status = "FAILED" if status == "FAILED" else "COMPLETED"
+    _STATUS_MAP = {"FAILED": "FAILED", "PARTIAL": "PARTIAL"}
+    deployment_status = _STATUS_MAP.get(status, "COMPLETED")
 
     # Build unified manifest from steps + resources (SUCCESS only)
     manifest = {}
@@ -93,6 +94,9 @@ def handler(event: Dict[str, Any], context, logger: StructuredLogger) -> Dict[st
         error_msg = error.get("Cause", str(error)) if isinstance(error, dict) else str(error)
         step.info("Marking job failed", dep_id=job_state.dep_id, error=error_msg)
         manager.mark_job_failed(job_state, error=error_msg, lab_id=lab_id)
+    elif status == "PARTIAL":
+        step.info("Marking job partial", dep_id=job_state.dep_id)
+        manager.mark_job_partial(job_state, lab_id=lab_id)
     else:
         step.info("Marking job complete", dep_id=job_state.dep_id, status=status)
         manager.mark_job_complete(job_state, lab_id=lab_id)

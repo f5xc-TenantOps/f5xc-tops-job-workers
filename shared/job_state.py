@@ -10,6 +10,7 @@ class JobStatus(str, Enum):
     PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
+    PARTIAL = "PARTIAL"
     FAILED = "FAILED"
 
 
@@ -53,6 +54,10 @@ class JobState:
     def mark_completed(self) -> None:
         """Mark job as completed."""
         self.status = JobStatus.COMPLETED
+
+    def mark_partial(self) -> None:
+        """Mark job as partially completed."""
+        self.status = JobStatus.PARTIAL
 
     def mark_failed(self, error: str) -> None:
         """Mark job as failed with error message."""

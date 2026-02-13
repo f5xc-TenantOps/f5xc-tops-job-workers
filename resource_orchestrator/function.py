@@ -129,6 +129,11 @@ def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: Struc
 
     client = _get_lambda_client()
 
+    # Error types from Lambda crash payloads that indicate transient failures
+    _TRANSIENT_ERROR_TYPES = {
+        "TransientError", "RateLimitError", "ConnectionError", "TimeoutError",
+    }
+
     try:
         response = client.invoke(
             FunctionName=function_name,
@@ -138,14 +143,32 @@ def execute_resource(resource: Dict[str, Any], ssm_base_path: str, logger: Struc
 
         result = json.loads(response["Payload"].read())
 
+        # Detect Lambda crash (unhandled exception)
+        if response.get("FunctionError"):
+            error_message = result.get("errorMessage", "Unknown error")
+            error_type = result.get("errorType", "")
+            step.error("Resource lambda crashed",
+                       resource_name=resource_name,
+                       error_type=error_type,
+                       error_message=error_message)
+            if error_type in _TRANSIENT_ERROR_TYPES:
+                raise TransientError(f"Resource creation failed: {error_type}: {error_message}")
+            raise PermanentError(f"Resource creation failed: {error_type}: {error_message}")
+
         if result.get("statusCode") == 200:
             step.info("Resource created successfully", resource_name=resource_name)
             return {"status": "success", "name": resource_name, "type": resource_type}
+        elif result.get("statusCode") == 400:
+            error = result.get("body", "Unknown error")
+            step.error("Resource creation failed (permanent)", resource_name=resource_name, error=error)
+            raise PermanentError(f"Resource creation failed: {error}")
         else:
             error = result.get("body", "Unknown error")
             step.error("Resource creation failed", resource_name=resource_name, error=error)
             raise TransientError(f"Resource creation failed: {error}")
 
+    except (PermanentError, TransientError):
+        raise
     except client.exceptions.ResourceNotFoundException:
         step.error("Resource lambda not found", function=function_name)
         raise PermanentError(f"Lambda function not found: {function_name}")

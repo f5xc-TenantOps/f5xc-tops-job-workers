@@ -111,7 +111,7 @@ class TestUpdateDeploymentRecord:
 
     @patch("finalize_job.function.boto3")
     @patch.dict(os.environ, {"DEPLOYMENT_STATE_TABLE": "test-table"})
-    def test_partial_status_maps_to_completed(self, mock_boto3):
+    def test_partial_status_maps_to_partial(self, mock_boto3):
         from finalize_job.function import _update_deployment_record
         from shared.logging import StructuredLogger
 
@@ -123,7 +123,7 @@ class TestUpdateDeploymentRecord:
         _update_deployment_record("dep-123", "PARTIAL", job_state, logger)
 
         expr_values = mock_table.update_item.call_args.kwargs["ExpressionAttributeValues"]
-        assert expr_values[":s"] == "COMPLETED"
+        assert expr_values[":s"] == "PARTIAL"
 
     @patch("finalize_job.function.boto3")
     @patch.dict(os.environ, {"DEPLOYMENT_STATE_TABLE": "test-table"})
