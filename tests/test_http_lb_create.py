@@ -114,3 +114,49 @@ def test_create_http_lb_client_init(mock_xc_client_class, mock_get_params):
         api_token="my-token",
         validate=False
     )
+
+
+@patch("http_lb_create.function.StateManager")
+@patch("http_lb_create.function.get_ssm_parameters")
+@patch("http_lb_create.function.XCClient")
+def test_handler_publishes_lb_hostname_output(mock_xc_client_class, mock_get_params, mock_state_manager_class):
+    """Handler publishes lb_hostname via add_output."""
+    from http_lb_create.function import handler
+
+    mock_get_params.return_value = {
+        "tenant-url": "https://test.console.ves.volterra.io",
+        "token-value": "token"
+    }
+
+    mock_client = MagicMock()
+    mock_xc_client_class.return_value = mock_client
+
+    mock_state_manager = MagicMock()
+    mock_state_manager_class.return_value = mock_state_manager
+
+    class MockContext:
+        function_name = "http_lb_create"
+
+    event = {
+        "ssm_base_path": "/tenantOps/test",
+        "metadata": {"name": "test-lb", "namespace": "test-ns"},
+        "spec": {"domains": ["fuzzy-cat.lab-sec.f5demos.com"]},
+        "job_state": {
+            "job_execution_id": "exec-1",
+            "job_id": "job-1",
+            "trigger_source": "test",
+            "email": "test@f5.com",
+            "petname": "fuzzy-cat",
+            "dep_id": "dep-123",
+        },
+    }
+
+    result = handler(event, MockContext())
+
+    assert result["statusCode"] == 200
+
+    # Verify lb_hostname was published as output
+    mock_state_manager.add_output.assert_called_once()
+    add_output_call = mock_state_manager.add_output.call_args
+    assert add_output_call[0][1] == "lb_hostname"
+    assert add_output_call[0][2] == "fuzzy-cat.lab-sec.f5demos.com"

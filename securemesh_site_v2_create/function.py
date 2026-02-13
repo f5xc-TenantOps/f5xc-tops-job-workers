@@ -1,10 +1,7 @@
 """Create SecureMesh Site v2 and registration token in F5 XC tenant."""
 
-import os
 import time
 from typing import Any, Dict
-
-import boto3
 
 from shared.decorators import lambda_handler
 from shared.errors import ResourceExistsError
@@ -14,8 +11,6 @@ from shared.ssm import get_ssm_parameters
 from shared.state import StateManager, get_job_state_from_event
 from shared.xc_client import XCClient
 
-DEPLOYMENT_STATE_BUCKET = os.environ.get("DEPLOYMENT_STATE_BUCKET", "")
-
 
 def create_site(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, Any]:
     """Create a SecureMesh Site v2 and its registration token.
@@ -23,14 +18,13 @@ def create_site(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     Steps:
         1. Create the site via XC API (system namespace).
         2. Create a JWT registration token for the site.
-        3. Write the JWT to the deployment S3 bucket (if dep_id provided).
 
     Args:
-        event: Contains ssm_base_path, metadata, spec, and optional dep_id.
+        event: Contains ssm_base_path, metadata, and spec.
         logger: Structured logger.
 
     Returns:
-        Dict with status and resource name.
+        Dict with status, resource name, and site_token JWT.
     """
     step = logger.with_step("create_securemesh_site_v2")
 
@@ -38,7 +32,6 @@ def create_site(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     metadata = event["metadata"]
     spec = event["spec"]
     name = metadata["name"]
-    dep_id = event.get("dep_id") or event.get("job_state", {}).get("dep_id")
 
     # Get XC credentials
     params = get_ssm_parameters(
@@ -77,22 +70,12 @@ def create_site(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str, An
     jwt_content = token_response["spec"]["content"]
     step.info("Registration token created", token_name=token_name)
 
-    # Step 3: Write token to S3 (only if dep_id provided)
-    if dep_id:
-        s3 = boto3.client("s3")
-        s3_key = f"{dep_id}/site_token"
-        step.info("Writing token to S3", bucket=DEPLOYMENT_STATE_BUCKET, key=s3_key)
-        s3.put_object(
-            Bucket=DEPLOYMENT_STATE_BUCKET,
-            Key=s3_key,
-            Body=jwt_content,
-            ContentType="text/plain"
-        )
-        step.info("Token written to S3")
-
+    result = {"status": "success", "name": name, "site_token": jwt_content}
     if already_existed:
-        return {"status": "success", "name": name, "already_existed": True}
-    return {"status": "success", "name": name, "created": True}
+        result["already_existed"] = True
+    else:
+        result["created"] = True
+    return result
 
 
 @lambda_handler
@@ -114,10 +97,12 @@ def handler(event: Dict[str, Any], context, logger: StructuredLogger) -> Dict[st
     try:
         result = create_site(event, logger)
 
-        # Mark resource complete
+        # Mark resource complete and publish site token as output
         if state_manager and job_state:
             job_state.update_resource(resource_name, StepStatus.SUCCESS, type=resource_type)
             state_manager.update_state(job_state, lab_id=lab_id)
+            if result.get("site_token"):
+                state_manager.add_output(job_state, "site_token", result["site_token"], lab_id=lab_id)
 
         return result
     except Exception as e:

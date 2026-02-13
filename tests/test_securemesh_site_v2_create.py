@@ -2,11 +2,10 @@ import pytest
 from unittest.mock import MagicMock, patch, call
 
 
-@patch("securemesh_site_v2_create.function.boto3")
 @patch("securemesh_site_v2_create.function.get_ssm_parameters")
 @patch("securemesh_site_v2_create.function.XCClient")
-def test_create_site_success(mock_xc_client_class, mock_get_params, mock_boto3):
-    """Successfully create site, token, and write token to S3."""
+def test_create_site_success(mock_xc_client_class, mock_get_params):
+    """Successfully create site and return token."""
     from securemesh_site_v2_create.function import create_site
     from shared.logging import StructuredLogger
 
@@ -25,15 +24,11 @@ def test_create_site_success(mock_xc_client_class, mock_get_params, mock_boto3):
     }
     mock_xc_client_class.return_value = mock_client
 
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-
     logger = StructuredLogger("test", "test-correlation-id")
     event = {
         "ssm_base_path": "/tenantOps/mcn-lab",
         "metadata": {"name": "fuzzy-cat-site", "namespace": "system"},
         "spec": {"kvm": {"not_managed": {}}},
-        "dep_id": "dep-123"
     }
 
     result = create_site(event, logger)
@@ -41,6 +36,7 @@ def test_create_site_success(mock_xc_client_class, mock_get_params, mock_boto3):
     assert result["status"] == "success"
     assert result["name"] == "fuzzy-cat-site"
     assert result["created"] is True
+    assert result["site_token"] == "eyJhbGci.jwt.token"
 
     # Verify site was created
     mock_client.create_securemesh_site_v2.assert_called_once()
@@ -54,18 +50,11 @@ def test_create_site_success(mock_xc_client_class, mock_get_params, mock_boto3):
     assert token_call_args[0] == "fuzzy-cat-site"  # site_name
     assert token_call_args[1].startswith("jwt-token-")  # token_name
 
-    # Verify token was written to S3
-    mock_s3.put_object.assert_called_once()
-    s3_call = mock_s3.put_object.call_args
-    assert s3_call[1]["Key"] == "dep-123/site_token"
-    assert s3_call[1]["Body"] == "eyJhbGci.jwt.token"
 
-
-@patch("securemesh_site_v2_create.function.boto3")
 @patch("securemesh_site_v2_create.function.get_ssm_parameters")
 @patch("securemesh_site_v2_create.function.XCClient")
-def test_create_site_already_exists(mock_xc_client_class, mock_get_params, mock_boto3):
-    """Site already exists - still create token and write to S3."""
+def test_create_site_already_exists(mock_xc_client_class, mock_get_params):
+    """Site already exists - still create token."""
     from securemesh_site_v2_create.function import create_site
     from shared.logging import StructuredLogger
     from shared.errors import ResourceExistsError
@@ -82,107 +71,26 @@ def test_create_site_already_exists(mock_xc_client_class, mock_get_params, mock_
     }
     mock_xc_client_class.return_value = mock_client
 
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-
     logger = StructuredLogger("test", "test-correlation-id")
     event = {
         "ssm_base_path": "/tenantOps/mcn-lab",
         "metadata": {"name": "fuzzy-cat-site", "namespace": "system"},
         "spec": {"kvm": {"not_managed": {}}},
-        "dep_id": "dep-123"
     }
 
     result = create_site(event, logger)
 
     assert result["status"] == "success"
     assert result["already_existed"] is True
+    assert result["site_token"] == "eyJhbGci.jwt.token"
 
     # Token should still be created even if site already existed
     mock_client.create_registration_token.assert_called_once()
-    mock_s3.put_object.assert_called_once()
 
 
-@patch("securemesh_site_v2_create.function.boto3")
 @patch("securemesh_site_v2_create.function.get_ssm_parameters")
 @patch("securemesh_site_v2_create.function.XCClient")
-def test_create_site_dep_id_from_job_state(mock_xc_client_class, mock_get_params, mock_boto3):
-    """dep_id extracted from job_state when not a top-level event key."""
-    from securemesh_site_v2_create.function import create_site
-    from shared.logging import StructuredLogger
-
-    mock_get_params.return_value = {
-        "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
-    }
-
-    mock_client = MagicMock()
-    mock_client.create_securemesh_site_v2.return_value = {"metadata": {"name": "test-site"}}
-    mock_client.create_registration_token.return_value = {
-        "spec": {"content": "eyJhbGci.jwt.token", "site_name": "test-site"}
-    }
-    mock_xc_client_class.return_value = mock_client
-
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-
-    logger = StructuredLogger("test", "test-correlation-id")
-    event = {
-        "ssm_base_path": "/tenantOps/mcn-lab",
-        "metadata": {"name": "test-site", "namespace": "system"},
-        "spec": {"kvm": {"not_managed": {}}},
-        "job_state": {"dep_id": "dep-456"}
-    }
-
-    result = create_site(event, logger)
-
-    assert result["status"] == "success"
-    mock_s3.put_object.assert_called_once()
-    s3_call = mock_s3.put_object.call_args
-    assert s3_call[1]["Key"] == "dep-456/site_token"
-
-
-@patch("securemesh_site_v2_create.function.boto3")
-@patch("securemesh_site_v2_create.function.get_ssm_parameters")
-@patch("securemesh_site_v2_create.function.XCClient")
-def test_create_site_no_dep_id_skips_s3(mock_xc_client_class, mock_get_params, mock_boto3):
-    """When no dep_id is provided, skip S3 write."""
-    from securemesh_site_v2_create.function import create_site
-    from shared.logging import StructuredLogger
-
-    mock_get_params.return_value = {
-        "tenant-url": "https://test.console.ves.volterra.io",
-        "token-value": "token"
-    }
-
-    mock_client = MagicMock()
-    mock_client.create_securemesh_site_v2.return_value = {"metadata": {"name": "test-site"}}
-    mock_client.create_registration_token.return_value = {
-        "spec": {"content": "eyJhbGci.jwt.token", "site_name": "test-site"}
-    }
-    mock_xc_client_class.return_value = mock_client
-
-    mock_s3 = MagicMock()
-    mock_boto3.client.return_value = mock_s3
-
-    logger = StructuredLogger("test", "test-correlation-id")
-    event = {
-        "ssm_base_path": "/tenantOps/mcn-lab",
-        "metadata": {"name": "test-site", "namespace": "system"},
-        "spec": {"kvm": {"not_managed": {}}}
-        # No dep_id
-    }
-
-    result = create_site(event, logger)
-
-    assert result["status"] == "success"
-    mock_s3.put_object.assert_not_called()
-
-
-@patch("securemesh_site_v2_create.function.boto3")
-@patch("securemesh_site_v2_create.function.get_ssm_parameters")
-@patch("securemesh_site_v2_create.function.XCClient")
-def test_create_site_permanent_error_raises(mock_xc_client_class, mock_get_params, mock_boto3):
+def test_create_site_permanent_error_raises(mock_xc_client_class, mock_get_params):
     """Permanent errors from site creation propagate."""
     from securemesh_site_v2_create.function import create_site
     from shared.logging import StructuredLogger
@@ -208,11 +116,11 @@ def test_create_site_permanent_error_raises(mock_xc_client_class, mock_get_param
         create_site(event, logger)
 
 
-@patch("securemesh_site_v2_create.function.boto3")
+@patch("securemesh_site_v2_create.function.StateManager")
 @patch("securemesh_site_v2_create.function.get_ssm_parameters")
 @patch("securemesh_site_v2_create.function.XCClient")
-def test_handler_state_tracking(mock_xc_client_class, mock_get_params, mock_boto3):
-    """Handler tracks resource state via job_state."""
+def test_handler_publishes_site_token_output(mock_xc_client_class, mock_get_params, mock_state_manager_class):
+    """Handler publishes site_token via add_output."""
     from securemesh_site_v2_create.function import handler
 
     mock_get_params.return_value = {
@@ -223,10 +131,12 @@ def test_handler_state_tracking(mock_xc_client_class, mock_get_params, mock_boto
     mock_client = MagicMock()
     mock_client.create_securemesh_site_v2.return_value = {"metadata": {"name": "test-site"}}
     mock_client.create_registration_token.return_value = {
-        "spec": {"content": "jwt", "site_name": "test-site"}
+        "spec": {"content": "jwt-abc-123", "site_name": "test-site"}
     }
     mock_xc_client_class.return_value = mock_client
-    mock_boto3.client.return_value = MagicMock()
+
+    mock_state_manager = MagicMock()
+    mock_state_manager_class.return_value = mock_state_manager
 
     class MockContext:
         function_name = "securemesh_site_v2_create"
@@ -235,10 +145,23 @@ def test_handler_state_tracking(mock_xc_client_class, mock_get_params, mock_boto
         "ssm_base_path": "/tenantOps/mcn-lab",
         "metadata": {"name": "test-site", "namespace": "system"},
         "spec": {"kvm": {"not_managed": {}}},
-        "dep_id": "dep-123"
+        "job_state": {
+            "job_execution_id": "exec-1",
+            "job_id": "job-1",
+            "trigger_source": "test",
+            "email": "test@f5.com",
+            "petname": "test-site",
+            "dep_id": "dep-123",
+        },
     }
 
     result = handler(event, MockContext())
 
     assert result["statusCode"] == 200
     assert result["body"]["status"] == "success"
+
+    # Verify site_token was published as output
+    mock_state_manager.add_output.assert_called_once()
+    add_output_call = mock_state_manager.add_output.call_args
+    assert add_output_call[0][1] == "site_token"
+    assert add_output_call[0][2] == "jwt-abc-123"

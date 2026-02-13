@@ -77,10 +77,13 @@ def handler(event: Dict[str, Any], context, logger: StructuredLogger) -> Dict[st
     try:
         result = create_lb(event, logger)
 
-        # Mark resource complete
+        # Mark resource complete and publish LB hostname as output
         if state_manager and job_state:
             job_state.update_resource(resource_name, StepStatus.SUCCESS, type=resource_type)
             state_manager.update_state(job_state, lab_id=lab_id)
+            domains = event.get("spec", {}).get("domains", [])
+            if domains:
+                state_manager.add_output(job_state, "lb_hostname", domains[0], lab_id=lab_id)
 
         return result
     except Exception as e:
