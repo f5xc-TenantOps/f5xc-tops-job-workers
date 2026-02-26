@@ -53,11 +53,11 @@ def prepare_config(event: Dict[str, Any], logger: StructuredLogger) -> Dict[str,
             "job_id": job_config.job_id,
             "ssm_base_path": job_config.ssm_base_path,
             "description": job_config.description,
-            "user": {
+            "user": substitute_variables({
                 "enabled": job_config.user.enabled,
                 "group_names": job_config.user.group_names,
                 "namespace_roles": job_config.user.namespace_roles,
-            },
+            }, variables),
             "namespace": {
                 "enabled": job_config.namespace.enabled,
             },
