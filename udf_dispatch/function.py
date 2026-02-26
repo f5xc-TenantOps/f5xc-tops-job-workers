@@ -1,3 +1,5 @@
+"""Process SQS heartbeats and create deployment records in DynamoDB."""
+
 import json
 import os
 import time
