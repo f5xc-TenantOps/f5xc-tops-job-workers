@@ -27,7 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Determine changed lambdas
         id: build-matrix
@@ -38,12 +38,19 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force_rebuild_all }}" == "true" ]]; then
             export REBUILD_ALL=true
           else
-            export CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
-            export REBUILD_ALL=false
-
-            # If lambda-deps.yaml changed, rebuild everything
-            if echo "$CHANGED" | grep -q "^lambda-deps.yaml$"; then
+            BEFORE="${{ github.event.before }}"
+            if [[ "$BEFORE" == "0000000000000000000000000000000000000000" || -z "$BEFORE" ]]; then
+              # Initial push to branch — rebuild everything
               export REBUILD_ALL=true
+            else
+              # Diff all commits in this push, not just the latest one
+              export CHANGED=$(git diff --name-only "$BEFORE" HEAD 2>/dev/null || echo "")
+              export REBUILD_ALL=false
+
+              # If lambda-deps.yaml changed, rebuild everything
+              if echo "$CHANGED" | grep -q "^lambda-deps.yaml$"; then
+                export REBUILD_ALL=true
+              fi
             fi
           fi
 
