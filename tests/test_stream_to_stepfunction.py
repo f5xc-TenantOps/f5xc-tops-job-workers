@@ -265,3 +265,70 @@ def test_stream_raises_when_lab_config_not_found(mock_get_ddb, mock_get_sfn):
         process_record(record, logger)
 
     mock_get_sfn.return_value.start_execution.assert_not_called()
+
+
+# --- Tests for _check_existing_user_in_tenant ---
+
+@patch("stream_to_stepfunction.function._get_dynamodb_client")
+@patch.dict(os.environ, {"DEPLOYMENT_STATE_TABLE": "tops-udf-lab-deployment-state-v2"})
+def test_check_existing_user_finds_active_deployment(mock_get_ddb):
+    """When scan returns items, _check_existing_user_in_tenant returns True."""
+    from stream_to_stepfunction.function import _check_existing_user_in_tenant
+    from shared.logging import StructuredLogger
+
+    mock_ddb = MagicMock()
+    mock_ddb.scan.return_value = {
+        "Items": [{"dep_id": {"S": "dep-other"}, "email": {"S": "user@test.com"}}]
+    }
+    mock_get_ddb.return_value = mock_ddb
+
+    logger = StructuredLogger("test", "test-id")
+    result = _check_existing_user_in_tenant("user@test.com", "https://tenant.example.com", logger)
+
+    assert result is True
+
+
+@patch("stream_to_stepfunction.function._get_dynamodb_client")
+@patch.dict(os.environ, {"DEPLOYMENT_STATE_TABLE": "tops-udf-lab-deployment-state-v2"})
+def test_check_existing_user_no_match(mock_get_ddb):
+    """When scan returns empty, _check_existing_user_in_tenant returns False."""
+    from stream_to_stepfunction.function import _check_existing_user_in_tenant
+    from shared.logging import StructuredLogger
+
+    mock_ddb = MagicMock()
+    mock_ddb.scan.return_value = {"Items": []}
+    mock_get_ddb.return_value = mock_ddb
+
+    logger = StructuredLogger("test", "test-id")
+    result = _check_existing_user_in_tenant("user@test.com", "https://tenant.example.com", logger)
+
+    assert result is False
+
+
+@patch("stream_to_stepfunction.function._get_dynamodb_client")
+@patch.dict(os.environ, {"DEPLOYMENT_STATE_TABLE": "tops-udf-lab-deployment-state-v2"})
+def test_check_existing_user_uses_consistent_read(mock_get_ddb):
+    """Verify ConsistentRead=True is passed to the scan call."""
+    from stream_to_stepfunction.function import _check_existing_user_in_tenant
+    from shared.logging import StructuredLogger
+
+    mock_ddb = MagicMock()
+    mock_ddb.scan.return_value = {"Items": []}
+    mock_get_ddb.return_value = mock_ddb
+
+    logger = StructuredLogger("test", "test-id")
+    _check_existing_user_in_tenant("user@test.com", "https://tenant.example.com", logger)
+
+    scan_kwargs = mock_ddb.scan.call_args.kwargs
+    assert scan_kwargs.get("ConsistentRead") is True
+
+
+def test_check_existing_user_no_tenant_url():
+    """When tenant_url is None, returns False without scanning."""
+    from stream_to_stepfunction.function import _check_existing_user_in_tenant
+    from shared.logging import StructuredLogger
+
+    logger = StructuredLogger("test", "test-id")
+    result = _check_existing_user_in_tenant("user@test.com", None, logger)
+
+    assert result is False

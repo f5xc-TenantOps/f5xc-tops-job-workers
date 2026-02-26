@@ -239,11 +239,15 @@ def _check_existing_user_in_tenant(email: str, tenant_url: Optional[str], logger
             ExpressionAttributeValues={
                 ":email": {"S": email},
                 ":tenant": {"S": tenant_url}
-            }
+            },
+            ConsistentRead=True
         )
         exists = bool(response.get("Items"))
         if exists:
             step.info("Another active deployment found, will skip user removal",
+                      email=email, tenant_url=tenant_url)
+        else:
+            step.info("No other active deployment found for user",
                       email=email, tenant_url=tenant_url)
         return exists
     except Exception as e:
