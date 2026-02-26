@@ -14,7 +14,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: prepare_job_config_53121eb.zip
+    s3Key: prepare_job_config_f241eae.zip
     kmsKeyArn: arn:aws:kms:us-east-1:430171053948:key/dc4482a7-d9eb-4f1d-8d20-e9abff473732
     roleRef:
       name: tops-utility-role-v2
