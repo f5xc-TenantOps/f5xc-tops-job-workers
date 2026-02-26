@@ -1,6 +1,6 @@
 """Bridge DynamoDB stream events to Step Functions.
 
-Triggered by DynamoDB deployment state table stream.
+Triggered by the DynamoDB deployment state table stream.
 Starts the provisioning Step Function for INSERT events
 and the cleanup Step Function for REMOVE events.
 """
