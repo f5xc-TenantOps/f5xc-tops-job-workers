@@ -171,6 +171,8 @@ def process_insert(record: dict, logger: StructuredLogger):
         pre_lambda = lab_info.get("pre_lambda")
 
         # Step 1: Fetch tenant URL from SSM, update deployment state
+        # NOTE: tenant_url is now primarily written by udf_dispatch at insert time.
+        # This write serves as a secondary backfill in case that lookup failed.
         try:
             region = boto3.session.Session().region_name
             params = get_parameters([f"{ssm_base_path}/tenant-url"], logger, region_name=region)
