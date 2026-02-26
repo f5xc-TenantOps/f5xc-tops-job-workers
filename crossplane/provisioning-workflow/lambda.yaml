@@ -227,7 +227,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: stream_to_stepfunction_487bb36.zip
+    s3Key: stream_to_stepfunction_ebadd76.zip
     kmsKeyArn: arn:aws:kms:us-east-1:430171053948:key/dc4482a7-d9eb-4f1d-8d20-e9abff473732
     roleRef:
       name: tops-stream-to-sfn-role-v2
