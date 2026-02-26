@@ -20,6 +20,7 @@ spec:
       - variables:
           DEPLOYMENT_STATE_TABLE: tops-udf-lab-deployment-state-v2
           UDF_QUEUE: tops-udf-queue-v2
+          LAB_CONFIGURATION_TABLE: tops-udf-lab-config-v2
     tags:
       Name: tops-udf-dispatch-v2
       Environment: production

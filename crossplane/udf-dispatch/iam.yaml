@@ -72,6 +72,21 @@ spec:
               "dynamodb:Scan"
             ],
             "Resource": "arn:aws:dynamodb:us-east-1:*:table/tops-udf-lab-deployment-state-v2"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:GetItem"
+            ],
+            "Resource": "arn:aws:dynamodb:us-east-1:*:table/tops-udf-lab-config-v2"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "ssm:GetParameter",
+              "ssm:GetParameters"
+            ],
+            "Resource": "arn:aws:ssm:us-east-1:*:parameter/tenantOps*"
           }
         ]
       }
