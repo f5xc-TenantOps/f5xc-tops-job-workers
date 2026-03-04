@@ -62,6 +62,10 @@ lambdas:
     dir: securemesh_site_v2_create
     component: provisioning-workflow
     uses_shared: true
+  virtual_k8s_create:
+    dir: virtual_k8s_create
+    component: provisioning-workflow
+    uses_shared: true
   securemesh_site_v2_remove:
     dir: securemesh_site_v2_remove
     component: utility-lambdas

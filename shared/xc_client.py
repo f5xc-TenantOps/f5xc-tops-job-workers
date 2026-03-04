@@ -326,6 +326,16 @@ class XCClient:
         """Get an app firewall."""
         return self.get(f"/api/config/namespaces/{namespace}/app_firewalls/{name}")
 
+    # --- Virtual K8s Operations ---
+
+    def create_virtual_k8s(self, namespace: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a Virtual K8s object."""
+        return self.post(f"/api/config/namespaces/{namespace}/virtual_k8ss", payload)
+
+    def get_virtual_k8s(self, namespace: str, name: str) -> Dict[str, Any]:
+        """Get a Virtual K8s object."""
+        return self.get(f"/api/config/namespaces/{namespace}/virtual_k8ss/{name}")
+
     # --- SecureMesh Site v2 Operations ---
 
     def create_securemesh_site_v2(self, payload: Dict[str, Any]) -> Dict[str, Any]:
