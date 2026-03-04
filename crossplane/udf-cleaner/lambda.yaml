@@ -14,7 +14,7 @@ spec:
     timeout: 60
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: udf_clean_53121eb.zip
+    s3Key: udf_clean_6e578fc.zip
     roleRef:
       name: tops-udf-cleaner-role-v2
     environment:
