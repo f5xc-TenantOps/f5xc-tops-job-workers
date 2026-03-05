@@ -291,7 +291,7 @@ spec:
     timeout: 120
     memorySize: 128
     s3Bucket: tops-lambda-bucket-v2
-    s3Key: virtual_k8s_create_6e578fc.zip
+    s3Key: virtual_k8s_create_235f765.zip
     kmsKeyArn: arn:aws:kms:us-east-1:430171053948:key/dc4482a7-d9eb-4f1d-8d20-e9abff473732
     roleRef:
       name: tops-utility-role-v2
